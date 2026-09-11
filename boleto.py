@@ -36,20 +36,20 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
         
         style_lbl = ParagraphStyle('Lbl', parent=styles['Normal'], fontSize=5.5, leading=6.5, textColor=colors.black)
         style_val = ParagraphStyle('Val', parent=styles['Normal'], fontSize=7.5, leading=9, fontName='Helvetica-Bold')
-        style_banco_cod = ParagraphStyle('BnkCod', parent=styles['Normal'], fontSize=13, leading=15, fontName='Helvetica-Bold', alignment=1)
+        style_banco_cod = ParagraphStyle('BnkCod', parent=styles['Normal'], fontSize=12, leading=14, fontName='Helvetica-Bold', alignment=1)
         style_pontilhado = ParagraphStyle('Pont', parent=styles['Normal'], fontSize=6, leading=7, alignment=1, textColor=colors.HexColor('#666666'))
         
         venc_fmt = "/".join(vencimento.split("-")[::-1]) if "-" in vencimento else vencimento
 
         try:
-            logo_banco = Image("756.bmp", width=65, height=16)
+            logo_banco = Image("756.bmp", width=60, height=15)
         except Exception:
             logo_banco = Paragraph("<b>SICOOB</b>", style_val)
 
         comp_data = [
             [
                 logo_banco, 
-                Paragraph("<b>756-0</b>", style_banco_cod), # Código do banco com fonte maior
+                Paragraph("<b>756-0</b>", style_banco_cod), 
                 Paragraph("<b>Comprovante de Entrega</b>", ParagraphStyle('Tit', parent=style_val, fontSize=9)), 
                 "", "", ""
             ],
@@ -91,7 +91,8 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             ]
         ]
         
-        tabela_comp = Table(comp_data, colWidths=[75, 45, 120, 95, 95, 146])
+        # Ajustado colWidths para dar espaço suficiente na coluna do 756-0 (50pt)
+        tabela_comp = Table(comp_data, colWidths=[70, 50, 120, 95, 95, 146])
         tabela_comp.setStyle(TableStyle([
             ('BOX', (0,0), (-1,-1), 1, colors.black),
             ('INNERGRID', (0,0), (-1,-1), 0.5, colors.black),
