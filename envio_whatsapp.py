@@ -4,6 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.edge.service import Service as EdgeService
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from urllib.parse import quote
@@ -15,7 +16,6 @@ def formatar_moeda(valor):
     return val_str.replace(",", "X").replace(".", ",").replace("X", ".")
 
 def limpar_telefone(telefone):
-    """Limpa e formata o telefone para o padrão internacional (DDI 55 + DDD + Numero)"""
     if not telefone:
         return None
     digitos = "".join([c for c in str(telefone) if c.isdigit()])
@@ -25,23 +25,23 @@ def limpar_telefone(telefone):
         digitos = "55" + digitos
     return digitos
 
-def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados):
+def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None):
     """
-    Envia a cobrança (mensagem formatada + anexos) via WhatsApp Web utilizando Selenium e Microsoft Edge.
-    Utiliza uma pasta de perfil local isolada para manter a sessão (não pede QR Code após o primeiro login).
+    Envia a notificação profissional de cobrança via WhatsApp Web (sem anexos),
+    informando que as notas e boletos foram enviados por e-mail.
     """
     telefone_raw = dados_pedido.get("WHATSAPP") or dados_pedido.get("TELEFONE")
     telefone = limpar_telefone(telefone_raw)
     
     if not telefone:
-        raise ValueError(f"O cliente {dados_pedido.get('CLIENTE_NOME')} não possui um número de WhatsApp/Telefone válido cadastrado.")
+        raise ValueError(f"O cliente {dados_pedido.get('CLIENTE_NOME')} não possui um número válido cadastrado.")
     
     cliente_nome = dados_pedido.get("CLIENTE_NOME", "Cliente")
     numero_pedido = dados_pedido.get("NUMERO_PEDIDO", "")
     os_valor = dados_pedido.get("OS")
     placa = dados_pedido.get("PLACA", "")
+    cliente_email = dados_pedido.get("EMAIL", "seu e-mail")
     
-    # Montagem do Texto otimizado para leitura no WhatsApp
     if os_valor:
         referencia_texto = f"referente aos materiais e serviços prestados no veículo de placa {placa} (O.S. {os_valor})"
     else:
@@ -68,35 +68,13 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados):
 
     mensagem = (
         f"Olá *{cliente_nome}*, tudo bem?\n\n"
-        f"Estamos encaminhando os documentos {referencia_texto} da *RONDOCHASSIS*.\n"
+        f"Informamos que as notas fiscais, XMLs e boletos {referencia_texto} da *RONDOCHASSIS* foram enviados para o seu e-mail cadastrado (*{cliente_email}*).\n\n"
         f"Abaixo estão os detalhes para pagamento:\n"
         f"{detalhes_boletos_txt}\n\n"
-        f"Em anexo seguem os arquivos (Pedido, Nota Fiscal e Boleto).\n"
-        f"Qualquer dúvida, estamos à disposição!\n"
+        f"Qualquer dúvida ou se precisar de novos arquivos, estamos à disposição!\n"
         f"_RONDOCHASSIS SERVIÇOS LTDA_"
     )
 
-    # Coleta todos os arquivos válidos do dicionário para anexar
-    arquivos_para_enviar = []
-    
-    def adicionar_arquivo(caminho):
-        if caminho:
-            p = Path(caminho)
-            if p.exists():
-                arquivos_para_enviar.append(str(p.resolve()))
-
-    adicionar_arquivo(arquivos_encontrados.get("PEDIDO"))
-    adicionar_arquivo(arquivos_encontrados.get("NFS_PDF"))
-    adicionar_arquivo(arquivos_encontrados.get("NFE_PDF"))
-    adicionar_arquivo(arquivos_encontrados.get("NFE_XML"))
-    
-    for b_path in arquivos_encontrados.get("BOLETOS", []):
-        adicionar_arquivo(b_path)
-
-    if not arquivos_para_enviar:
-        print("⚠️ Aviso: Nenhum arquivo foi encontrado para anexar no WhatsApp, mas a mensagem de texto será enviada.")
-
-    # Configuração do Selenium com Microsoft Edge e Perfil Persistente Isolado
     pasta_perfil = Path.home() / "Documents" / "RemessaDocumentos" / "WhatsappSessionEdge"
     pasta_perfil.mkdir(parents=True, exist_ok=True)
 
@@ -104,7 +82,7 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados):
     options.add_argument(f"user-data-dir={pasta_perfil}")
     options.add_argument("--start-maximized")
 
-    print(f"Iniciando navegador Microsoft Edge para disparo no WhatsApp para o número {telefone}...")
+    print(f"Iniciando Microsoft Edge para envio do aviso via WhatsApp para {telefone}...")
     
     driver = webdriver.Edge(service=EdgeService(EdgeChromiumDriverManager().install()), options=options)
     
@@ -112,41 +90,24 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados):
         link_zap = f"https://web.whatsapp.com/send?phone={telefone}&text={quote(mensagem)}"
         driver.get(link_zap)
         
-        wait = WebDriverWait(driver, 60) # Aguarda até 60 segundos para carregar/ler QR Code se for a primeira vez
+        wait = WebDriverWait(driver, 60)
         
-        print("Aguardando o WhatsApp Web carregar a conversa...")
-        botao_enviar_texto = wait.until(
-            EC.element_to_be_clickable((By.XPATH, '//span[@data-icon="send"]'))
+        print("Aguardando a caixa de texto carregar...")
+        caixa_texto = wait.until(
+            EC.presence_of_element_located((By.XPATH, '//div[@contenteditable="true"][@data-tab="10"]'))
         )
+        time.sleep(2.5)
         
-        botao_enviar_texto.click()
-        time.sleep(2)
-        
-        if arquivos_para_enviar:
-            print(f"Anexando {len(arquivos_para_enviar)} arquivo(s)...")
-            
-            clip_button = wait.until(
-                EC.element_to_be_clickable((By.XPATH, '//div[@title="Anexar" or @aria-label="Anexar"]'))
-            )
-            clip_button.click()
-            time.sleep(1)
-            
-            for arquivo in arquivos_para_enviar:
-                file_input = driver.find_element(By.XPATH, '//input[@type="file" and (@accept="*") or @multiple]')
-                file_input.send_keys(arquivo)
-                time.sleep(2)
-            
-            botao_enviar_midia = wait.until(
-                EC.element_to_be_clickable((By.XPATH, '//span[@data-icon="send" or @data-icon="checkmark"]'))
-            )
-            botao_enviar_midia.click()
-            print("Arquivos anexados e enviados com sucesso!")
-            time.sleep(3)
+        # Pressiona ENTER na caixa de texto para disparar a mensagem estruturada
+        caixa_texto.send_keys(Keys.ENTER)
+        print("✔ Mensagem informativa enviada com sucesso no WhatsApp!")
+        time.sleep(4) # Pausa para consolidar o envio na rede
 
-        print(f"✅ WhatsApp enviado com sucesso para {cliente_nome} ({telefone})!")
+        print(f"✅ Disparo de WhatsApp concluído!")
         return True
 
     except Exception as e:
         raise Exception(f"Erro na automação do WhatsApp Web (Edge): {str(e)}")
     finally:
+        time.sleep(3)
         driver.quit()
