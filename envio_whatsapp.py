@@ -25,10 +25,11 @@ def limpar_telefone(telefone):
         digitos = "55" + digitos
     return digitos
 
-def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None):
+def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None, driver_instancia=None):
     """
     Envia a notificação profissional de cobrança via WhatsApp Web (sem anexos),
     informando que as notas e boletos foram enviados por e-mail.
+    Suporta reutilização de instância do navegador para disparos em lote.
     """
     telefone_raw = dados_pedido.get("WHATSAPP") or dados_pedido.get("TELEFONE")
     telefone = limpar_telefone(telefone_raw)
@@ -75,17 +76,21 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None):
         f"_RONDOCHASSIS SERVIÇOS LTDA_"
     )
 
-    pasta_perfil = Path.home() / "Documents" / "RemessaDocumentos" / "WhatsappSessionEdge"
-    pasta_perfil.mkdir(parents=True, exist_ok=True)
+    driver = driver_instancia
+    fechar_ao_final = False
 
-    options = webdriver.EdgeOptions()
-    options.add_argument(f"user-data-dir={pasta_perfil}")
-    options.add_argument("--start-maximized")
+    if not driver:
+        pasta_perfil = Path.home() / "Documents" / "RemessaDocumentos" / "WhatsappSessionEdge"
+        pasta_perfil.mkdir(parents=True, exist_ok=True)
 
-    print(f"Iniciando Microsoft Edge para envio do aviso via WhatsApp para {telefone}...")
-    
-    driver = webdriver.Edge(service=EdgeService(EdgeChromiumDriverManager().install()), options=options)
-    
+        options = webdriver.EdgeOptions()
+        options.add_argument(f"user-data-dir={pasta_perfil}")
+        options.add_argument("--start-maximized")
+
+        print(f"Iniciando Microsoft Edge para envio do aviso via WhatsApp para {telefone}...")
+        driver = webdriver.Edge(service=EdgeService(EdgeChromiumDriverManager().install()), options=options)
+        fechar_ao_final = True
+
     try:
         link_zap = f"https://web.whatsapp.com/send?phone={telefone}&text={quote(mensagem)}"
         driver.get(link_zap)
@@ -109,5 +114,6 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None):
     except Exception as e:
         raise Exception(f"Erro na automação do WhatsApp Web (Edge): {str(e)}")
     finally:
-        time.sleep(3)
-        driver.quit()
+        if fechar_ao_final and driver:
+            time.sleep(3)
+            driver.quit()
