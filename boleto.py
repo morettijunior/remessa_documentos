@@ -68,17 +68,17 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
         doc = SimpleDocTemplate(
             str(caminho_arquivo),
             pagesize=letter,
-            rightMargin=18, leftMargin=18, topMargin=18, bottomMargin=18
+            rightMargin=14, leftMargin=14, topMargin=12, bottomMargin=12
         )
         
         story = []
         styles = getSampleStyleSheet()
         
-        style_lbl = ParagraphStyle('Lbl', parent=styles['Normal'], fontSize=5.5, leading=6.5, textColor=colors.black)
-        style_val = ParagraphStyle('Val', parent=styles['Normal'], fontSize=7.5, leading=9, fontName='Helvetica-Bold')
-        style_banco_cod = ParagraphStyle('BnkCod', parent=styles['Normal'], fontSize=12, leading=14, fontName='Helvetica-Bold', alignment=1)
-        style_linha_dig = ParagraphStyle('LDig', parent=styles['Normal'], fontSize=9.5, leading=11, fontName='Helvetica-Bold', alignment=2)
-        style_pontilhado = ParagraphStyle('Pont', parent=styles['Normal'], fontSize=6, leading=7, alignment=1, textColor=colors.HexColor('#666666'))
+        style_lbl = ParagraphStyle('Lbl', parent=styles['Normal'], fontSize=7.5, leading=8.5, textColor=colors.black)
+        style_val = ParagraphStyle('Val', parent=styles['Normal'], fontSize=9.5, leading=11, fontName='Helvetica-Bold')
+        style_banco_cod = ParagraphStyle('BnkCod', parent=styles['Normal'], fontSize=14, leading=16, fontName='Helvetica-Bold', alignment=1)
+        style_linha_dig = ParagraphStyle('LDig', parent=styles['Normal'], fontSize=11, leading=13, fontName='Helvetica-Bold', alignment=2)
+        style_pontilhado = ParagraphStyle('Pont', parent=styles['Normal'], fontSize=5, leading=5.5, alignment=1, textColor=colors.HexColor('#666666'))
         
         venc_fmt = "/".join(vencimento.split("-")[::-1]) if "-" in vencimento else vencimento
         linha_dig_formatada = formatar_linha_digitavel(linha_dig)
@@ -89,13 +89,13 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             logo_banco = Paragraph("<b>SICOOB</b>", style_val)
 
         # -------------------------------------------------------------
-        # 1. COMPROVANTE DE ENTREGA
+        # 1. COMPROVANTE DE ENTREGA 
         # -------------------------------------------------------------
         comp_data = [
             [
                 logo_banco, 
                 Paragraph("<b>756-0</b>", style_banco_cod), 
-                Paragraph("<b>Comprovante de Entrega</b>", ParagraphStyle('Tit', parent=style_val, fontSize=9)), 
+                Paragraph("<b>Comprovante de Entrega</b>", ParagraphStyle('Tit', parent=style_val, fontSize=11)), 
                 "", "", ""
             ],
             [
@@ -114,7 +114,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             ],
             [
                 Paragraph(f"Vencimento<br/><b>{venc_fmt}</b>", style_lbl), 
-                Paragraph(f"Número do Documento<br/><b>{num_doc}</b>", style_lbl), 
+                Paragraph(f"Número do Doc<br/><b>{num_doc}</b>", style_lbl), 
                 Paragraph(f"Espécie<br/><b>R$</b>", style_lbl), 
                 Paragraph(f"Valor do Documento<br/><b>{valor_fmt}</b>", style_lbl), 
                 Paragraph("[  ] Recusado", style_lbl), 
@@ -136,12 +136,12 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             ]
         ]
         
-        tabela_comp = Table(comp_data, colWidths=[70, 50, 120, 95, 95, 146])
+        tabela_comp = Table(comp_data, colWidths=[70, 65, 105, 95, 95, 156])
         tabela_comp.setStyle(TableStyle([
             ('BOX', (0,0), (-1,-1), 1, colors.black),
             ('INNERGRID', (0,0), (-1,-1), 0.5, colors.black),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('PADDING', (0,0), (-1,-1), 2),
+            ('PADDING', (0,0), (-1,-1), 1.5),
             ('SPAN', (2,0), (5,0)),
             ('SPAN', (0,1), (1,1)), 
             ('SPAN', (3,1), (5,1)), 
@@ -151,9 +151,9 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             ('SPAN', (4,5), (5,5)), 
         ]))
         story.append(tabela_comp)
-        story.append(Spacer(1, 3))
-        story.append(Paragraph("- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -", style_pontilhado))
-        story.append(Spacer(1, 3))
+        story.append(Spacer(1, 1.5))
+        story.append(Paragraph("- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -", style_pontilhado))
+        story.append(Spacer(1, 1.5))
 
         # -------------------------------------------------------------
         # 2. RECIBO DO PAGADOR
@@ -162,7 +162,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             [
                 logo_banco, 
                 Paragraph("<b>756-0</b>", style_banco_cod), 
-                Paragraph("<b>Recibo do Pagador</b>", ParagraphStyle('TitR', parent=style_val, fontSize=9)), 
+                Paragraph("<b>Recibo do Pagador</b>", ParagraphStyle('TitR', parent=style_val, fontSize=11)), 
                 "", "", ""
             ],
             [
@@ -179,7 +179,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             ],
             [
                 Paragraph("Data do Documento<br/><b>11/09/2026</b>", style_lbl),
-                Paragraph(f"Numero do Documento<br/><b>{num_doc}</b>", style_lbl),
+                Paragraph(f"Numero do Doc<br/><b>{num_doc}</b>", style_lbl),
                 Paragraph("Especie Doc.<br/><b>DM</b>", style_lbl),
                 Paragraph("Aceite<br/><b>N</b>", style_lbl),
                 Paragraph("Data do Processamento<br/><b>11/09/2026</b>", style_lbl),
@@ -196,52 +196,49 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             [
                 Paragraph(
                     "Instruções (Texto de responsabilidade do beneficiário.)<br/>"
-                    "TESTE<br/>"
-                    "APOS O VENC. COBRAR MULTA DE 2,00%<br/>"
-                    "APOS O VENC. COBRAR JUROS DE 0,17% DIA<br/><br/>"
-                    f"Parcela {parcela} de 1<br/>"
-                    f"Pix Copia e Cole:<br/><font size=4.5>{pix}</font>",
+                    "TESTE — APOS O VENC. COBRAR MULTA DE 2,00% | JUROS DE 0,17% DIA<br/>"
+                    f"Parcela {parcela} de 1 &nbsp;|&nbsp; Pix Copia e Cole: <font size=5>{pix}</font>",
                     style_lbl
                 ),
                 "", "", "", "",
-                Paragraph("(-) Desconto<br/><br/><b></b>", style_lbl)
+                Paragraph("(-) Desconto<br/><b></b>", style_lbl)
             ],
             [
                 "", "", "", "", "",
-                Paragraph("(-) Outras Deducoes / Abatimento<br/><br/><b></b>", style_lbl)
+                Paragraph("(-) Outras Deducoes / Abatimento<br/><b></b>", style_lbl)
             ],
             [
                 "", "", "", "", "",
-                Paragraph("(+) Mora / Multa / Juros<br/><br/><b></b>", style_lbl)
+                Paragraph("(+) Mora / Multa / Juros<br/><b></b>", style_lbl)
             ],
             [
                 "", "", "", "", "",
-                Paragraph("(+) Outros Acrescimos<br/><br/><b></b>", style_lbl)
+                Paragraph("(+) Outros Acrescimos<br/><b></b>", style_lbl)
             ],
             [
                 "", "", "", "", "",
-                Paragraph("(=) Valor Cobrado<br/><br/><b></b>", style_lbl)
+                Paragraph("(=) Valor Cobrado<br/><b></b>", style_lbl)
             ],
             [
-                Paragraph(f"Pagador: <b>{cliente_nome}</b><br/>{endereco_completo}", style_lbl),
+                Paragraph(f"Pagador: <b>{cliente_nome}</b> &nbsp;|&nbsp; {endereco_completo}", style_lbl),
                 "", "", "",
                 Paragraph(f"CPF / CNPJ<br/><b>{cliente_doc}</b>", style_lbl),
                 ""
             ],
             [
-                Paragraph("Beneficiário<br/>Final:", style_lbl),
+                Paragraph("Beneficiário Final:", style_lbl),
                 "", "", "",
                 Paragraph("Código de Baixa<br/><b></b>", style_lbl),
                 ""
             ]
         ]
         
-        tabela_recibo = Table(recibo_data, colWidths=[110, 80, 90, 95, 95, 106])
+        tabela_recibo = Table(recibo_data, colWidths=[70, 65, 105, 95, 95, 156])
         tabela_recibo.setStyle(TableStyle([
             ('BOX', (0,0), (-1,-1), 1, colors.black),
             ('INNERGRID', (0,0), (-1,-1), 0.5, colors.black),
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('PADDING', (0,0), (-1,-1), 2),
+            ('PADDING', (0,0), (-1,-1), 1.5),
             ('SPAN', (2,0), (5,0)),
             ('SPAN', (0,1), (2,1)), ('SPAN', (3,1), (5,1)),
             ('SPAN', (0,2), (2,2)), ('SPAN', (3,2), (5,2)),
@@ -250,9 +247,9 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             ('SPAN', (0,11), (3,11)), ('SPAN', (4,11), (5,11)),
         ]))
         story.append(tabela_recibo)
-        story.append(Spacer(1, 3))
-        story.append(Paragraph("- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -", style_pontilhado))
-        story.append(Spacer(1, 3))
+        story.append(Spacer(1, 1.5))
+        story.append(Paragraph("- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -", style_pontilhado))
+        story.append(Spacer(1, 1.5))
 
         # -------------------------------------------------------------
         # 3. FICHA DE COMPENSAÇÃO
@@ -264,8 +261,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
                 bounds = qr.getBounds()
                 w = bounds[2] - bounds[0]
                 h = bounds[3] - bounds[1]
-                # Aumentado para 75x75 para preencher melhor a altura da célula mesclada
-                qr_drawing = Drawing(75, 75, transform=[75/w, 0, 0, 75/h, 0, 0])
+                qr_drawing = Drawing(55, 55, transform=[55/w, 0, 0, 55/h, 0, 0])
                 qr_drawing.add(qr)
             except Exception:
                 qr_drawing = Paragraph("[QR CODE]", style_lbl)
@@ -291,7 +287,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             ],
             [
                 Paragraph("Data do Documento<br/><b>11/09/2026</b>", style_lbl), 
-                Paragraph(f"Número do Documento<br/><b>{num_doc}</b>", style_lbl), 
+                Paragraph(f"Número do Doc<br/><b>{num_doc}</b>", style_lbl), 
                 Paragraph("Espécie Doc.<br/><b>DM</b>", style_lbl), 
                 Paragraph("Aceite<br/><b>N</b>", style_lbl), 
                 Paragraph("Data do Processamento<br/><b>11/09/2026</b>", style_lbl), 
@@ -308,53 +304,50 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             [
                 Paragraph(
                     "Instruções (Texto de responsabilidade do beneficiário.)<br/>"
-                    "TESTE<br/>"
-                    "APOS O VENC. COBRAR MULTA DE 2,00%<br/>"
-                    "APOS O VENC. COBRAR JUROS DE 0,17% DIA<br/><br/>"
-                    f"Parcela {parcela} de 1<br/>"
-                    f"Pix Copia e Cole:<br/><font size=4>{pix}</font>",
+                    "TESTE — APOS O VENC. COBRAR MULTA DE 2,00% | JUROS DE 0,17% DIA<br/>"
+                    f"Parcela {parcela} de 1 &nbsp;|&nbsp; Pix Copia e Cole: <font size=5>{pix}</font>",
                     style_lbl
                 ),
                 "", "", "",
                 qr_drawing if qr_drawing else "",
-                Paragraph("(-) Desconto<br/><br/><b></b>", style_lbl)
+                Paragraph("(-) Desconto<br/><b></b>", style_lbl)
             ],
             [
                 "", "", "", "", "",
-                Paragraph("(-) Outras Deducoes / Abatimento<br/><br/><b></b>", style_lbl)
+                Paragraph("(-) Outras Deducoes / Abatimento<br/><b></b>", style_lbl)
             ],
             [
                 "", "", "", "", "",
-                Paragraph("(+) Mora / Multa / Juros<br/><br/><b></b>", style_lbl)
+                Paragraph("(+) Mora / Multa / Juros<br/><b></b>", style_lbl)
             ],
             [
                 "", "", "", "", "",
-                Paragraph("(+) Outros Acrescimos<br/><br/><b></b>", style_lbl)
+                Paragraph("(+) Outros Acrescimos<br/><b></b>", style_lbl)
             ],
             [
                 "", "", "", "", "",
-                Paragraph("(=) Valor Cobrado<br/><br/><b></b>", style_lbl)
+                Paragraph("(=) Valor Cobrado<br/><b></b>", style_lbl)
             ],
             [
-                Paragraph(f"Pagador &nbsp;&nbsp;&nbsp;&nbsp; <b>{cliente_nome}</b><br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {endereco_completo}", style_lbl),
+                Paragraph(f"Pagador &nbsp;&nbsp;&nbsp;&nbsp; <b>{cliente_nome}</b> &nbsp;|&nbsp; {endereco_completo}", style_lbl),
                 "", "", "",
                 Paragraph(f"CPF / CNPJ<br/><b>{cliente_doc}</b>", style_lbl),
                 ""
             ],
             [
-                Paragraph("Beneficiário<br/>Final:", style_lbl),
+                Paragraph("Beneficiário Final:", style_lbl),
                 "", "", "",
                 Paragraph("Código de Baixa<br/><b></b>", style_lbl),
                 ""
             ]
         ]
         
-        tabela_ficha = Table(ficha_data, colWidths=[70, 50, 120, 95, 95, 146])
+        tabela_ficha = Table(ficha_data, colWidths=[70, 65, 105, 95, 95, 156])
         tabela_ficha.setStyle(TableStyle([
             ('BOX', (0,0), (-1,-1), 1, colors.black),
             ('INNERGRID', (0,0), (-1,-1), 0.5, colors.black),
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('PADDING', (0,0), (-1,-1), 2),
+            ('PADDING', (0,0), (-1,-1), 1.5),
             ('SPAN', (2,0), (5,0)),
             ('SPAN', (0,1), (2,1)), ('SPAN', (3,1), (5,1)),
             ('SPAN', (0,2), (2,2)), ('SPAN', (3,2), (5,2)),
@@ -364,19 +357,31 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
             ('SPAN', (0,11), (3,11)), ('SPAN', (4,11), (5,11)),
         ]))
         story.append(tabela_ficha)
-        story.append(Spacer(1, 4))
+        story.append(Spacer(1, 2))
 
         if linha_dig:
             try:
-                codigo_limpo = "".join([c for c in linha_dig if c.isdigit()])[:44]
-                if len(codigo_limpo) >= 20:
-                    barcode = code128.Code128(codigo_limpo, barWidth=1.1, barHeight=28)
+                nums_limpos = "".join([c for c in linha_dig if c.isdigit()])
+                if len(nums_limpos) == 47:
+                    codigo_barras_44 = (
+                        nums_limpos[0:3]
+                        + nums_limpos[3:4]
+                        + nums_limpos[32:33]
+                        + nums_limpos[33:37]
+                        + nums_limpos[37:47]
+                        + nums_limpos[4:9]
+                        + nums_limpos[10:20]
+                        + nums_limpos[21:31]
+                    )
+                else:
+                    codigo_barras_44 = nums_limpos[:44]
+
+                if len(codigo_barras_44) == 44:
+                    barcode = code128.Code128(codigo_barras_44, barWidth=1.3, barHeight=30)
                     story.append(barcode)
-                    story.append(Spacer(1, 2))
+                    story.append(Spacer(1, 1))
             except Exception:
                 pass
-
-        story.append(Paragraph("Autenticação Mecânica — Ficha de Compensação", ParagraphStyle('Aut', parent=styles['Normal'], fontSize=5.5, alignment=2, textColor=colors.HexColor('#555555'))))
 
         doc.build(story)
         arquivos_gerados.append(str(caminho_arquivo))

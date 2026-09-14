@@ -17,7 +17,8 @@ BAIXO PRA CIMA =
 1 - ENCONTRAR ENDEREÇO PADRÃO NFE(PDF), NFE(XML), NFS(PDF)
 NFS = \\Servidor\tga\NFS-e\XML\numero-nfse.pdf (automatico)
 NFE = C:\TGA\Nfe\PDF\202609(AnoMes)\chavedeacesso-nfe.pdf (após exportar)
-XML = C:\TGA\Nfe\XML\202609(AnoMes)\NFe\chavedeacesso-nfe.pdf (após exportar)
+XML = C:\TGA\Nfe\XML\202609(AnoMes)\NFe\chavedeacesso-nfe.xml (após exportar)
+PEDIDO = C:\TGA\pedido.pdf
 
 
 2 - VERIFICAR COMO IMPRIMIR BOLETO A PARTIR DO BD
