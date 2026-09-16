@@ -18,13 +18,21 @@ def enviar_email_cobranca(dados_pedido, arquivos_encontrados, config_email):
     """
     Envia boletos, notas fiscais, XMLs e pedido por e-mail via SMTP da Hostinger
     e grava uma cópia diretamente na pasta 'Sent' (Enviados) via IMAP.
+    Suporta um ou múltiplos e-mails no cadastro.
     """
     cliente_nome = dados_pedido.get("CLIENTE_NOME", "Cliente")
-    cliente_email = dados_pedido.get("EMAIL")
+    email_raw = dados_pedido.get("EMAIL")
     
-    if not cliente_email:
+    if not email_raw:
         raise ValueError("O cliente não possui e-mail cadastrado no campo 'EMAIL'.")
         
+    # Tratamento robusto para um ou múltiplos e-mails separados por vírgula ou ponto e vírgula
+    email_tratado = str(email_raw).replace(";", ",")
+    destinatarios = [e.strip() for e in email_tratado.split(",") if e.strip()]
+    
+    if not destinatarios:
+        raise ValueError("Nenhum e-mail válido foi encontrado no cadastro do cliente.")
+
     numero_pedido = dados_pedido.get("NUMERO_PEDIDO", "")
     os_valor = dados_pedido.get("OS")
     placa = dados_pedido.get("PLACA", "")
@@ -86,10 +94,10 @@ def enviar_email_cobranca(dados_pedido, arquivos_encontrados, config_email):
     <p>Atenciosamente,<br><b>RONDOCHASSIS SERVIÇOS LTDA</b></p>
     """
     
-    # Montagem da Mensagem de E-mail (Sem Cc poluindo a caixa)
+    # Montagem da Mensagem de E-mail (Exibe todos os destinatários no cabeçalho To)
     msg = MIMEMultipart()
     msg['From'] = remetente
-    msg['To'] = cliente_email
+    msg['To'] = ", ".join(destinatarios)
     msg['Subject'] = assunto
     msg['Date'] = formatdate(localtime=True)
     msg['Message-ID'] = make_msgid()
@@ -118,19 +126,19 @@ def enviar_email_cobranca(dados_pedido, arquivos_encontrados, config_email):
     for boleto_path in arquivos_encontrados.get("BOLETOS", []):
         anexar(boleto_path)
         
-    # 1. Envio via SMTP (Para o cliente)
+    # 1. Envio via SMTP (Passando a lista limpa de destinatários)
     try:
         contexto = smtplib.ssl.create_default_context()
         
         if smtp_port == 465:
             with smtplib.SMTP_SSL(smtp_host, smtp_port, context=contexto, timeout=30) as server:
                 server.login(remetente, senha)
-                server.sendmail(remetente, [cliente_email], msg.as_string())
+                server.sendmail(remetente, destinatarios, msg.as_string())
         else:
             with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
                 server.starttls(context=contexto)
                 server.login(remetente, senha)
-                server.sendmail(remetente, [cliente_email], msg.as_string())
+                server.sendmail(remetente, destinatarios, msg.as_string())
                 
     except Exception as e:
         raise Exception(f"Erro ao enviar e-mail via SMTP Hostinger: {str(e)}")
@@ -140,10 +148,8 @@ def enviar_email_cobranca(dados_pedido, arquivos_encontrados, config_email):
         with imaplib.IMAP4_SSL(imap_host, imap_port, timeout=30) as imap:
             imap.login(remetente, senha)
             
-            # Tenta salvar na pasta padrão de enviados da Hostinger
             pasta_enviados = 'INBOX.Sent'
             
-            # Caso o servidor utilize outro nome comum (como 'Sent' ou 'Enviados'), faz o append
             try:
                 imap.append(
                     pasta_enviados, 
@@ -152,7 +158,6 @@ def enviar_email_cobranca(dados_pedido, arquivos_encontrados, config_email):
                     msg.as_bytes()
                 )
             except Exception:
-                # Fallback para a pasta "Sent" caso INBOX.Sent dê exceção no servidor
                 imap.append(
                     'Sent', 
                     '(\\Seen)', 
@@ -160,6 +165,6 @@ def enviar_email_cobranca(dados_pedido, arquivos_encontrados, config_email):
                     msg.as_bytes()
                 )
     except Exception as imap_erro:
-        print(f"⚠️ Aviso: E-mail enviado ao cliente, mas ocorreu um erro ao salvar na pasta de Enviados: {imap_erro}")
+        print(f"⚠️ Aviso: E-mail enviado aos destinatários, mas ocorreu um erro ao salvar na pasta de Enviados: {imap_erro}")
 
     return True

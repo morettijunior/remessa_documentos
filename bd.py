@@ -46,17 +46,19 @@ def consultar_pedido(numero_input):
     num_limpo = limpar_zeros(numero_input)
 
     try:
-        # 1. Busca o movimento principal na TMOV
+        # 1. Busca o movimento principal na TMOV filtrando apenas vendas (Exclui Compras tipo EC)
+        # Ajuste as séries abaixo caso sua empresa utilize outras siglas de venda além de 'EV' e 'OS'
         query_mov = """
             SELECT IDMOV, NUMEROMOV, SERIE, IDMOVRELAC, CODCFO, OB_NUMEROSERIE 
             FROM TMOV 
-            WHERE NUMEROMOV = ?
+            WHERE NUMEROMOV = ? 
+              AND UPPER(TRIM(SERIE)) IN ('EV', 'OS')
         """
         cursor.execute(query_mov, (num_formatado,))
         mov_principal = cursor.fetchone()
 
         if not mov_principal:
-            print(f"Movimento {num_formatado} não encontrado na tabela TMOV.")
+            print(f"Movimento de venda {num_formatado} (Séries EV/OS) não encontrado na tabela TMOV.")
             return None
 
         id_mov, num_mov, serie, id_mov_relac, cod_cfo, placa = mov_principal

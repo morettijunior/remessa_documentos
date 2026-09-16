@@ -198,18 +198,27 @@ class AppRemessa:
                         raise ValueError("Diretório de saída dos boletos não configurado.")
                     caminhos_boletos = gerar_pdf_boleto(dados_pedido, pasta_boletos)
 
-                    # Valida arquivos obrigatórios
+                    # Valida arquivos obrigatórios de forma detalhada
                     arquivos = verificar_arquivos_pedido(dados_pedido, self.caminhos)
                     arquivos["BOLETOS"] = caminhos_boletos
 
-                    # Blindagem de arquivos: Verifica se falta algum arquivo essencial mapeado
                     falhas_arquivos = []
-                    if not arquivos.get("PEDIDO"): falhas_arquivos.append("Pedido PDF")
-                    if not arquivos.get("NFS_PDF") and not arquivos.get("NFE_PDF"): falhas_arquivos.append("Nota Fiscal (PDF)")
-                    if not caminhos_boletos: falhas_arquivos.append("Boleto (PDF)")
+                    
+                    if not arquivos.get("PEDIDO"):
+                        falhas_arquivos.append("Pedido (PDF)")
+                    
+                    # Verifica individualmente NFe e NFS para clareza no log
+                    tem_nfs = bool(arquivos.get("NFS_PDF"))
+                    tem_nfe = bool(arquivos.get("NFE_PDF"))
+                    if not tem_nfs and not tem_nfe:
+                        falhas_arquivos.append("Nenhuma Nota Fiscal encontrada (NFS ou NFe PDF)")
+                        
+                    if not caminhos_boletos:
+                        falhas_arquivos.append("Boleto (PDF)")
 
                     if falhas_arquivos:
-                        raise ValueError(f"Arquivos obrigatórios faltando no disco: {', '.join(falhas_arquivos)}. Envio cancelado.")
+                        detalhe_faltas = ", ".join(falhas_arquivos)
+                        raise ValueError(f"Arquivos obrigatórios faltando no disco ({detalhe_faltas}). Envio cancelado.")
 
                     # Dispara E-mail
                     enviar_email_cobranca(dados_pedido, arquivos, config_email)
