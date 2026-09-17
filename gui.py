@@ -174,6 +174,13 @@ class AppRemessa:
             "senha": "rondoCh@ss1s"
         }
 
+        # Configuração da Evolution API rodando no servidor local via Docker
+        config_whatsapp = {
+            "url_base": "http://servidor:8080",
+            "instance": "rondochassis",
+            "apikey": "RondoChassis2026*"
+        }
+
         resultados_email = []
         resultados_zap = []
 
@@ -231,72 +238,49 @@ class AppRemessa:
                     resultados_email.append((num_pedido, False, erro_msg))
 
         # ==========================================
-        # 2. PROCESSAMENTO DE WHATSAPP
+        # 2. PROCESSAMENTO DE WHATSAPP (EVOLUTION API)
         # ==========================================
         if lista_zaps:
             self.registrar_log("\n=== INICIANDO LOTE DE WHATSAPP ===")
-            driver_zap = None
-            try:
-                # Inicializa o Edge uma única vez para o lote todo
-                from selenium import webdriver
-                from selenium.webdriver.edge.service import Service as EdgeService
-                from webdriver_manager.microsoft import EdgeChromiumDriverManager
-
-                pasta_perfil = Path.home() / "Documents" / "RemessaDocumentos" / "WhatsappSessionEdge"
-                pasta_perfil.mkdir(parents=True, exist_ok=True)
-
-                options = webdriver.EdgeOptions()
-                options.add_argument(f"user-data-dir={pasta_perfil}")
-                options.add_argument("--start-maximized")
-
-                self.registrar_log("Iniciando Microsoft Edge para WhatsApp...")
-                driver_zap = webdriver.Edge(service=EdgeService(EdgeChromiumDriverManager().install()), options=options)
-
-            except Exception as e:
-                msg_erro_driver = f"Erro ao inicializar navegador Edge para WhatsApp: {e}"
-                self.registrar_log(msg_erro_driver)
-                for num_pedido in lista_zaps:
-                    resultados_zap.append((num_pedido, False, msg_erro_driver))
-                driver_zap = None
-
-            if driver_zap:
-                for num_pedido in lista_zaps:
-                    self.registrar_log(f"\n[WhatsApp] Processando pedido: {num_pedido}")
-                    try:
-                        dados_pedido = consultar_pedido(num_pedido)
-                        if not dados_pedido:
-                            raise ValueError(f"Pedido {num_pedido} não encontrado no banco de dados Firebird.")
-
-                        telefone_raw = dados_pedido.get("WHATSAPP") or dados_pedido.get("TELEFONE")
-                        if not telefone_raw:
-                            raise ValueError(f"Cliente '{dados_pedido.get('CLIENTE_NOME')}' não possui número de WhatsApp válido.")
-
-                        # Gera boletos (necessário para extrair Pix e Linha Digitável para o texto)
-                        pasta_boletos = self.caminhos.get("DIR_PDF_BOLETO")
-                        caminhos_boletos = gerar_pdf_boleto(dados_pedido, pasta_boletos)
-                        
-                        arquivos = verificar_arquivos_pedido(dados_pedido, self.caminhos)
-                        arquivos["BOLETOS"] = caminhos_boletos
-
-                        # Validação de arquivos essenciais antes do envio informativo
-                        if not caminhos_boletos:
-                            raise ValueError("Boleto não gerado. Impossível enviar dados de pagamento via WhatsApp.")
-
-                        # Dispara aviso informativo estruturado no WhatsApp (sem anexos instáveis)
-                        enviar_whatsapp_cobranca(dados_pedido, driver_instancia=driver_zap)
-                        self.registrar_log(f"[WhatsApp] Sucesso para o pedido {num_pedido}")
-                        resultados_zap.append((num_pedido, True, "Enviado com sucesso"))
-
-                    except Exception as e:
-                        erro_msg = str(e)
-                        self.registrar_log(f"[WhatsApp] FALHA no pedido {num_pedido}: {erro_msg}")
-                        resultados_zap.append((num_pedido, False, erro_msg))
-
+            for num_pedido in lista_zaps:
+                self.registrar_log(f"\n[WhatsApp] Processando pedido: {num_pedido}")
                 try:
-                    driver_zap.quit()
-                    self.registrar_log("Navegador Edge do WhatsApp fechado com segurança.")
-                except:
-                    pass
+                    dados_pedido = consultar_pedido(num_pedido)
+                    if not dados_pedido:
+                        raise ValueError(f"Pedido {num_pedido} não encontrado no banco de dados Firebird.")
+
+                    telefone_raw = dados_pedido.get("WHATSAPP") or dados_pedido.get("TELEFONE")
+                    if not telefone_raw:
+                        raise ValueError(f"Cliente '{dados_pedido.get('CLIENTE_NOME')}' não possui número de WhatsApp válido.")
+
+                    # Gera boletos (necessário para extrair Pix e Linha Digitável para o texto)
+                    pasta_boletos = self.caminhos.get("DIR_PDF_BOLETO")
+                    if not pasta_boletos:
+                        raise ValueError("Diretório de saída dos boletos não configurado.")
+                    caminhos_boletos = gerar_pdf_boleto(dados_pedido, pasta_boletos)
+                    
+                    arquivos = verificar_arquivos_pedido(dados_pedido, self.caminhos)
+                    arquivos["BOLETOS"] = caminhos_boletos
+
+                    # Validação de arquivos essenciais antes do envio
+                    if not caminhos_boletos:
+                        raise ValueError("Boleto não gerado. Impossível enviar dados de pagamento via WhatsApp.")
+
+                    # Dispara via Evolution API (com envio opcional de anexos em PDF/XML)
+                    enviar_whatsapp_cobranca(
+                        dados_pedido=dados_pedido, 
+                        arquivos_encontrados=arquivos, 
+                        config_whatsapp=config_whatsapp, 
+                        enviar_com_anexos=True
+                    )
+                    
+                    self.registrar_log(f"[WhatsApp] Sucesso para o pedido {num_pedido}")
+                    resultados_zap.append((num_pedido, True, "Enviado com sucesso"))
+
+                except Exception as e:
+                    erro_msg = str(e)
+                    self.registrar_log(f"[WhatsApp] FALHA no pedido {num_pedido}: {erro_msg}")
+                    resultados_zap.append((num_pedido, False, erro_msg))
 
         # Exibe relatório amigável ao usuário
         self.root.after(0, lambda: self.exibir_relatorio_final(resultados_email, resultados_zap))

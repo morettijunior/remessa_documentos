@@ -1,13 +1,16 @@
+# ==============================================================================
+# INSTRUÇÕES DE ACESSO E CONFIGURAÇÃO DA EVOLUTION API (RONDOCHASSIS)
+# ==============================================================================
+# Servidor Docker Local: http://servidor:8080 (ou http://localhost:8080 no servidor)
+# Nome da Instância:     rondochassis
+# API Key / Token:       RondoChassis2026*
+# Painel Gerenciador:    http://servidor:8080/manager (para reconectar QR Code se necessário)
+# ==============================================================================
+
 import time
+import base64
+import requests
 from pathlib import Path
-from selenium import webdriver
-from selenium.webdriver.edge.service import Service as EdgeService
-from webdriver_manager.microsoft import EdgeChromiumDriverManager
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from urllib.parse import quote
 
 def formatar_moeda(valor):
     if not valor:
@@ -25,23 +28,31 @@ def limpar_telefone(telefone):
         digitos = "55" + digitos
     return digitos
 
-def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None, driver_instancia=None):
+def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None, config_whatsapp=None, enviar_com_anexos=False):
     """
-    Envia a notificação profissional de cobrança via WhatsApp Web (sem anexos),
-    informando que as notas e boletos foram enviados por e-mail.
-    Suporta reutilização de instância do navegador para disparos em lote.
+    Envia a notificação de cobrança e os arquivos anexados (PDFs/XMLs) 
+    via Evolution API hospedada localmente.
     """
+    if not config_whatsapp:
+        raise ValueError("As configurações da Evolution API (url_base, instance, apikey) não foram informadas.")
+
+    url_base = config_whatsapp.get("url_base", "http://servidor:8080").rstrip("/")
+    instance = config_whatsapp.get("instance", "rondochassis")
+    apikey = config_whatsapp.get("apikey", "RondoChassis2026*")
+
+    if not instance or not apikey:
+        raise ValueError("O nome da 'instance' ou a 'apikey' da Evolution API estão faltando nas configurações.")
+
     telefone_raw = dados_pedido.get("WHATSAPP") or dados_pedido.get("TELEFONE")
     telefone = limpar_telefone(telefone_raw)
     
     if not telefone:
-        raise ValueError(f"O cliente {dados_pedido.get('CLIENTE_NOME')} não possui um número válido cadastrado.")
+        raise ValueError(f"O cliente {dados_pedido.get('CLIENTE_NOME')} não possui um número de WhatsApp válido cadastrado.")
     
     cliente_nome = dados_pedido.get("CLIENTE_NOME", "Cliente")
     numero_pedido = dados_pedido.get("NUMERO_PEDIDO", "")
     os_valor = dados_pedido.get("OS")
     placa = dados_pedido.get("PLACA", "")
-    cliente_email = dados_pedido.get("EMAIL", "seu e-mail")
     
     if os_valor:
         referencia_texto = f"referente aos materiais e serviços prestados no veículo de placa {placa} (O.S. {os_valor})"
@@ -69,51 +80,79 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None, driver_ins
 
     mensagem = (
         f"Olá *{cliente_nome}*, tudo bem?\n\n"
-        f"Informamos que as notas fiscais, XMLs e boletos {referencia_texto} da *RONDOCHASSIS* foram enviados para o seu e-mail cadastrado (*{cliente_email}*).\n\n"
+        f"Informamos que as notas fiscais, XMLs e boletos {referencia_texto} da *RONDOCHASSIS* estão sendo encaminhados.\n\n"
         f"Abaixo estão os detalhes para pagamento:\n"
         f"{detalhes_boletos_txt}\n\n"
-        f"Qualquer dúvida ou se precisar de novos arquivos, estamos à disposição!\n"
+        f"Qualquer dúvida, estamos à disposição!\n"
         f"_RONDOCHASSIS SERVIÇOS LTDA_"
     )
 
-    driver = driver_instancia
-    fechar_ao_final = False
+    headers = {
+        "apikey": apikey,
+        "Content-Type": "application/json"
+    }
 
-    if not driver:
-        pasta_perfil = Path.home() / "Documents" / "RemessaDocumentos" / "WhatsappSessionEdge"
-        pasta_perfil.mkdir(parents=True, exist_ok=True)
-
-        options = webdriver.EdgeOptions()
-        options.add_argument(f"user-data-dir={pasta_perfil}")
-        options.add_argument("--start-maximized")
-
-        print(f"Iniciando Microsoft Edge para envio do aviso via WhatsApp para {telefone}...")
-        driver = webdriver.Edge(service=EdgeService(EdgeChromiumDriverManager().install()), options=options)
-        fechar_ao_final = True
+    # 1. Envia a mensagem de texto principal
+    url_texto = f"{url_base}/message/sendText/{instance}"
+    payload_texto = {
+        "number": telefone,
+        "text": mensagem
+    }
 
     try:
-        link_zap = f"https://web.whatsapp.com/send?phone={telefone}&text={quote(mensagem)}"
-        driver.get(link_zap)
-        
-        wait = WebDriverWait(driver, 60)
-        
-        print("Aguardando a caixa de texto carregar...")
-        caixa_texto = wait.until(
-            EC.presence_of_element_located((By.XPATH, '//div[@contenteditable="true"][@data-tab="10"]'))
-        )
-        time.sleep(2.5)
-        
-        # Pressiona ENTER na caixa de texto para disparar a mensagem estruturada
-        caixa_texto.send_keys(Keys.ENTER)
-        print("✔ Mensagem informativa enviada com sucesso no WhatsApp!")
-        time.sleep(4) # Pausa para consolidar o envio na rede
-
-        print(f"✅ Disparo de WhatsApp concluído!")
-        return True
-
+        resp = requests.post(url_texto, json=payload_texto, headers=headers, timeout=90)
+        if resp.status_code not in [200, 201]:
+            raise Exception(f"Erro HTTP {resp.status_code}: {resp.text}")
+        print("✔ Mensagem de texto enviada via Evolution API!")
     except Exception as e:
-        raise Exception(f"Erro na automação do WhatsApp Web (Edge): {str(e)}")
-    finally:
-        if fechar_ao_final and driver:
-            time.sleep(3)
-            driver.quit()
+        raise Exception(f"Erro ao conectar com a Evolution API (Texto): {str(e)}")
+
+    # 2. Se a opção de anexar estiver ativada, envia os arquivos via sendMedia
+    if enviar_com_anexos and arquivos_encontrados:
+        lista_caminhos = []
+        
+        for tipo, caminho in arquivos_encontrados.items():
+            if tipo == "BOLETOS" and isinstance(caminho, list):
+                for b in caminho:
+                    if b and Path(b).exists():
+                        lista_caminhos.append(b)
+            elif caminho and Path(caminho).exists():
+                lista_caminhos.append(caminho)
+
+        if lista_caminhos:
+            url_media = f"{url_base}/message/sendMedia/{instance}"
+            
+            for arq_path in lista_caminhos:
+                path_obj = Path(arq_path)
+                print(f"📤 Enviando anexo: {path_obj.name}...")
+
+                try:
+                    # Converte o arquivo local para Base64
+                    with open(path_obj, "rb") as f:
+                        encoded_file = base64.b64encode(f.read()).decode("utf-8")
+
+                    extensao = path_obj.suffix.lower()
+                    mimetype = "application/pdf" if extensao == ".pdf" else "application/xml"
+
+                    payload_media = {
+                        "number": telefone,
+                        "mediatype": "document",
+                        "mimetype": mimetype,
+                        "caption": f"Documento: {path_obj.name}",
+                        "media": encoded_file,
+                        "fileName": path_obj.name
+                    }
+
+                    resp_media = requests.post(url_media, json=payload_media, headers=headers, timeout=60)
+                    if resp_media.status_code in [200, 201]:
+                        print(f"✔ Arquivo {path_obj.name} enviado com sucesso!")
+                    else:
+                        print(f"⚠️ Erro ao enviar arquivo {path_obj.name}: {resp_media.text}")
+                    
+                    # Pequena pausa entre o envio de múltiplos arquivos para não sobrecarregar a fila do WhatsApp
+                    time.sleep(1.5)
+
+                except Exception as ex_media:
+                    print(f"⚠️ Exceção ao processar o anexo {path_obj.name}: {ex_media}")
+
+    return True
