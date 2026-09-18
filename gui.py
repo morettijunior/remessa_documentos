@@ -29,6 +29,7 @@ def carregar_caminhos_salvos():
         "DIR_NFE_PDF": "",
         "DIR_NFE_XML": "",
         "DIR_PDF_BOLETO": str(Path.home() / "Documents" / "BoletosGerados"),
+        "DIR_RECURSOS": "",
         "ASSINATURA_EMAIL": ""
     }
 
@@ -42,7 +43,7 @@ class AppRemessa:
     def __init__(self, root):
         self.root = root
         self.root.title("Rondochassis - Central de Remessa de Documentos")
-        self.root.geometry("750x630")
+        self.root.geometry("750x660")
         self.root.minsize(700, 580)
 
         self.caminhos = carregar_caminhos_salvos()
@@ -95,7 +96,7 @@ class AppRemessa:
     def abrir_janela_configuracoes(self):
         janela_cfg = tk.Toplevel(self.root)
         janela_cfg.title("Configuração de Diretórios e Assinatura")
-        janela_cfg.geometry("600x480")
+        janela_cfg.geometry("600x520")
         janela_cfg.grab_set()
 
         entries = {}
@@ -106,16 +107,17 @@ class AppRemessa:
             ("DIR_NFE_PDF", "Pasta Nota Fiscal de Produto (PDF):"),
             ("DIR_NFE_XML", "Pasta Nota Fiscal de Produto (XML):"),
             ("DIR_PDF_BOLETO", "Pasta de Saída dos Boletos (PDF):"),
+            ("DIR_RECURSOS", "Pasta de Recursos (Logo/Boleto):"),
             ("ASSINATURA_EMAIL", "Imagem de Assinatura do E-mail (PNG/JPG):")
         ]
 
         for idx, (chave, label_txt) in enumerate(chaves):
             lbl = tk.Label(janela_cfg, text=label_txt, font=("Arial", 9))
-            lbl.grid(row=idx*2, column=0, sticky="w", padx=15, pady=(8, 0))
+            lbl.grid(row=idx*2, column=0, sticky="w", padx=15, pady=(6, 0))
 
             ent = tk.Entry(janela_cfg, width=60, font=("Arial", 9))
             ent.insert(0, self.caminhos.get(chave, ""))
-            ent.grid(row=idx*2+1, column=0, padx=15, pady=(0, 5))
+            ent.grid(row=idx*2+1, column=0, padx=15, pady=(0, 4))
             entries[chave] = ent
 
             def escolher_destino(e=ent, eh_arquivo=(chave == "ASSINATURA_EMAIL")):

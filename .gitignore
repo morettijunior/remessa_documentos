@@ -8,3 +8,6 @@ venv/
 *.log
 saida_boletos/
 teste*
+build/
+dist/
+*.spec
