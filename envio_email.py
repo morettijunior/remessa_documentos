@@ -4,7 +4,8 @@ import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
-from email import encoders
+from email.mime.image import MIMEImage
+from email.encoders import encode_base64
 from email.utils import formatdate, make_msgid
 from pathlib import Path
 
@@ -45,6 +46,7 @@ def enviar_email_cobranca(dados_pedido, arquivos_encontrados, config_email):
     
     remetente = config_email.get("remetente")
     senha = config_email.get("senha")
+    assinatura_path = config_email.get("assinatura_path") # Caminho opcional da imagem de assinatura
     
     if not remetente or not senha:
         raise ValueError("As chaves 'remetente' ou 'senha' não foram informadas corretamente no dicionário de configuração.")
@@ -57,53 +59,94 @@ def enviar_email_cobranca(dados_pedido, arquivos_encontrados, config_email):
         assunto = f"Pedido {numero_pedido} Nota(s) e boleto(s) da Rondochassis."
         referencia_texto = f"materiais entregues no pedido {numero_pedido}"
         
-    # Organiza os detalhes dos boletos para o corpo do e-mail
+    # Organiza os detalhes dos boletos para o corpo do e-mail (Sem exibir o código Pix bruto)
     boletos_dados = dados_pedido.get("BOLETOS", [])
     detalhes_boletos_html = ""
     
-    for idx, bol in enumerate(boletos_dados):
-        parcela = bol.get("PARCELA", idx + 1)
+    for idx, bol in enumerate(boletos_dados, start=1):
         vencimento = bol.get("VENCIMENTO", "")
         venc_fmt = "/".join(vencimento.split("-")[::-1]) if "-" in vencimento else vencimento
         valor = formatar_moeda(bol.get("VALOR", 0.0))
-        pix = bol.get("QRCODEPIX", "")
         
-        detalhes_boletos_html += f"""
-        <hr style="border: 0; border-top: 1px solid #ccc; margin: 10px 0;">
-        <p><b>Parcela {parcela}:</b> Vencimento em <b>{venc_fmt}</b> — Valor: <b>R$ {valor}</b></p>
-        """
-        if pix:
-            detalhes_boletos_html += f"""
-            <p style="font-size: 11px;"><b>Pix Copia e Cole (Parcela {parcela}):</b></p>
-            <p style="background-color: #f4f4f4; padding: 8px; word-break: break-all; font-family: monospace; font-size: 10px;">
-                {pix}
-            </p>
-            """
+        detalhes_boletos_html += f"Parcela {idx}: Vencimento em {venc_fmt} — Valor: R$ {valor}<br>\n"
 
+    # Verificação dos arquivos que realmente existem para montar a listagem dinâmica
+    tem_pedido = bool(arquivos_encontrados.get("PEDIDO") and Path(arquivos_encontrados.get("PEDIDO")).exists())
+    tem_nfs = bool(arquivos_encontrados.get("NFS_PDF") and Path(arquivos_encontrados.get("NFS_PDF")).exists())
+    tem_nfe_pdf = bool(arquivos_encontrados.get("NFE_PDF") and Path(arquivos_encontrados.get("NFE_PDF")).exists())
+    tem_nfe_xml = bool(arquivos_encontrados.get("NFE_XML") and Path(arquivos_encontrados.get("NFE_XML")).exists())
+    
+    lista_boletos_anexos = arquivos_encontrados.get("BOLETOS", [])
+    tem_boletos = any(Path(b).exists() for b in lista_boletos_anexos if b)
+
+    lista_arquivos_html = ""
+    if tem_pedido:
+        lista_arquivos_html += "<li>Cópia do Pedido</li>\n"
+    if tem_nfs:
+        lista_arquivos_html += "<li>Nota Fiscal de Serviços (pdf)</li>\n"
+    if tem_nfe_pdf:
+        lista_arquivos_html += "<li>Nota Fiscal de Peças (pdf)</li>\n"
+    if tem_nfe_xml:
+        lista_arquivos_html += "<li>Nota Fiscal de Peças (xml)</li>\n"
+    if tem_boletos:
+        lista_arquivos_html += "<li>Boleto(s)</li>\n"
+
+    # Montagem do HTML principal do e-mail conforme o novo padrão solicitado
     corpo_html = f"""
-    <p>Caro cliente <b>{cliente_nome}</b>,</p>
-    <p>Estou encaminhando os documentos referentes aos {referencia_texto}. O boleto inclui todos os detalhes necessários para a efetivação do pagamento, incluindo o valor total e a data de vencimento.</p>
-    
-    {detalhes_boletos_html}
-    
-    <br>
-    <p>Caso haja alguma dúvida ou necessidade de esclarecimentos adicionais, estou à disposição para ajudar.</p>
-    <p>Agradeço antecipadamente pela atenção e preferência!!<br>
-    Esperamos trabalhar com você em breve!</p>
-    <br>
-    <p>Atenciosamente,<br><b>RONDOCHASSIS SERVIÇOS LTDA</b></p>
+    <html>
+    <body style="font-family: Arial, sans-serif; color: #333333; font-size: 14px; line-height: 1.5;">
+        <p>Caro cliente <b>{cliente_nome}</b>,</p>
+        <p>Estou encaminhando os documentos referentes aos {referencia_texto}. O boleto inclui todos os detalhes necessários para a efetivação do pagamento, incluindo o valor total e a data de vencimento.</p>
+        
+        <p>
+        {detalhes_boletos_html}
+        </p>
+        
+        <p>Em anexo neste email seguem os seguintes arquivos:</p>
+        <ul>
+            {lista_arquivos_html}
+        </ul>
+        
+        <p>Caso haja alguma dúvida ou necessidade de esclarecimentos adicionais, estou à disposição para ajudar.<br>
+        Agradeço antecipadamente pela atenção e preferência!!<br>
+        Esperamos trabalhar com você em breve!</p>
+        
+        <p>Atenciosamente,<br><b>RONDOCHASSIS SERVIÇOS LTDA</b></p>
+    """
+
+    if assinatura_path and Path(assinatura_path).exists():
+        corpo_html += '<br><img src="cid:assinatura_imagem" alt="Assinatura" style="max-width: 750px; height: auto;"><br>'
+
+    corpo_html += """
+    </body>
+    </html>
     """
     
-    # Montagem da Mensagem de E-mail (Exibe todos os destinatários no cabeçalho To)
-    msg = MIMEMultipart()
+    # Montagem da Mensagem de E-mail com suporte a HTML e partes alternativas se necessário
+    msg = MIMEMultipart('related')
     msg['From'] = remetente
     msg['To'] = ", ".join(destinatarios)
     msg['Subject'] = assunto
     msg['Date'] = formatdate(localtime=True)
     msg['Message-ID'] = make_msgid()
     
-    msg.attach(MIMEText(corpo_html, 'html', 'utf-8'))
+    msg_alternative = MIMEMultipart('alternative')
+    msg.attach(msg_alternative)
     
+    msg_alternative.attach(MIMEText(corpo_html, 'html', 'utf-8'))
+    
+    # Anexa a imagem de assinatura com Content-ID (CID) se fornecida
+    if assinatura_path and Path(assinatura_path).exists():
+        try:
+            with open(assinatura_path, "rb") as f:
+                img_data = f.read()
+                img = MIMEImage(img_data)
+                img.add_header('Content-ID', '<assinatura_imagem>')
+                img.add_header('Content-Disposition', 'inline', filename=Path(assinatura_path).name)
+                msg.attach(img)
+        except Exception as e:
+            print(f"⚠️ Aviso: Não foi possível anexar a imagem de assinatura: {e}")
+
     # Função auxiliar interna para anexar arquivos encontrados
     def anexar(caminho):
         if caminho:
@@ -112,18 +155,18 @@ def enviar_email_cobranca(dados_pedido, arquivos_encontrados, config_email):
                 with open(caminho_arquivo, "rb") as f:
                     parte = MIMEBase('application', 'octet-stream')
                     parte.set_payload(f.read())
-                encoders.encode_base64(parte)
+                encode_base64(parte)
                 parte.add_header('Content-Disposition', f'attachment; filename="{caminho_arquivo.name}"')
                 msg.attach(parte)
                 print(f"✔ Anexado: {caminho_arquivo.name}")
 
-    # Processa os anexos mapeados pelo arquivos.py
+    # Processa os anexos mapeados
     anexar(arquivos_encontrados.get("PEDIDO"))
     anexar(arquivos_encontrados.get("NFS_PDF"))
     anexar(arquivos_encontrados.get("NFE_PDF"))
     anexar(arquivos_encontrados.get("NFE_XML"))
     
-    for boleto_path in arquivos_encontrados.get("BOLETOS", []):
+    for boleto_path in lista_boletos_anexos:
         anexar(boleto_path)
         
     # 1. Envio via SMTP (Passando a lista limpa de destinatários)

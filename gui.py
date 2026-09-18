@@ -28,7 +28,8 @@ def carregar_caminhos_salvos():
         "DIR_NFS_XML": "",
         "DIR_NFE_PDF": "",
         "DIR_NFE_XML": "",
-        "DIR_PDF_BOLETO": str(Path.home() / "Documents" / "BoletosGerados")
+        "DIR_PDF_BOLETO": str(Path.home() / "Documents" / "BoletosGerados"),
+        "ASSINATURA_EMAIL": ""
     }
 
 def salvar_caminhos_no_disco(caminhos):
@@ -41,8 +42,8 @@ class AppRemessa:
     def __init__(self, root):
         self.root = root
         self.root.title("Rondochassis - Central de Remessa de Documentos")
-        self.root.geometry("750x600")
-        self.root.minsize(700, 550)
+        self.root.geometry("750x630")
+        self.root.minsize(700, 580)
 
         self.caminhos = carregar_caminhos_salvos()
         self.log_detalhado_texto = ""
@@ -93,8 +94,8 @@ class AppRemessa:
 
     def abrir_janela_configuracoes(self):
         janela_cfg = tk.Toplevel(self.root)
-        janela_cfg.title("Configuração de Diretórios")
-        janela_cfg.geometry("600x400")
+        janela_cfg.title("Configuração de Diretórios e Assinatura")
+        janela_cfg.geometry("600x480")
         janela_cfg.grab_set()
 
         entries = {}
@@ -104,36 +105,44 @@ class AppRemessa:
             ("DIR_NFS_XML", "Pasta Nota Fiscal de Serviço (XML):"),
             ("DIR_NFE_PDF", "Pasta Nota Fiscal de Produto (PDF):"),
             ("DIR_NFE_XML", "Pasta Nota Fiscal de Produto (XML):"),
-            ("DIR_PDF_BOLETO", "Pasta de Saída dos Boletos (PDF):")
+            ("DIR_PDF_BOLETO", "Pasta de Saída dos Boletos (PDF):"),
+            ("ASSINATURA_EMAIL", "Imagem de Assinatura do E-mail (PNG/JPG):")
         ]
 
         for idx, (chave, label_txt) in enumerate(chaves):
             lbl = tk.Label(janela_cfg, text=label_txt, font=("Arial", 9))
-            lbl.grid(row=idx*2, column=0, sticky="w", padx=15, pady=(10, 0))
+            lbl.grid(row=idx*2, column=0, sticky="w", padx=15, pady=(8, 0))
 
-            ent = tk.Entry(janela_cfg, width=65, font=("Arial", 9))
+            ent = tk.Entry(janela_cfg, width=60, font=("Arial", 9))
             ent.insert(0, self.caminhos.get(chave, ""))
             ent.grid(row=idx*2+1, column=0, padx=15, pady=(0, 5))
             entries[chave] = ent
 
-            def escolher_pasta(e=ent):
-                pasta = filedialog.askdirectory()
-                if pasta:
+            def escolher_destino(e=ent, eh_arquivo=(chave == "ASSINATURA_EMAIL")):
+                if eh_arquivo:
+                    caminho = filedialog.askopenfilename(
+                        title="Selecione a imagem de assinatura",
+                        filetypes=[("Imagens", "*.png *.jpg *.jpeg")]
+                    )
+                else:
+                    caminho = filedialog.askdirectory()
+                
+                if caminho:
                     e.delete(0, tk.END)
-                    e.insert(0, pasta)
+                    e.insert(0, caminho)
 
-            btn_browse = tk.Button(janela_cfg, text="Procurar...", command=escolher_pasta)
+            btn_browse = tk.Button(janela_cfg, text="Procurar...", command=escolher_destino)
             btn_browse.grid(row=idx*2+1, column=1, padx=5)
 
         def salvar():
             for chave, ent in entries.items():
                 self.caminhos[chave] = ent.get().strip()
             salvar_caminhos_no_disco(self.caminhos)
-            messagebox.showinfo("Sucesso", "Caminhos salvos com sucesso!", parent=janela_cfg)
+            messagebox.showinfo("Sucesso", "Configurações salvas com sucesso!", parent=janela_cfg)
             janela_cfg.destroy()
 
         btn_salvar = tk.Button(janela_cfg, text="Salvar Configurações", font=("Arial", 10, "bold"), bg="#007bff", fg="white", command=salvar)
-        btn_salvar.grid(row=len(chaves)*2, column=0, columnspan=2, pady=20)
+        btn_salvar.grid(row=len(chaves)*2, column=0, columnspan=2, pady=15)
 
     def abrir_janela_log(self):
         janela_log = tk.Toplevel(self.root)
@@ -171,7 +180,8 @@ class AppRemessa:
             "imap_host": "imap.hostinger.com",
             "imap_port": 993,
             "remetente": "financeiro@rondochassis.com.br",
-            "senha": "rondoCh@ss1s"
+            "senha": "rondoCh@ss1s",
+            "assinatura_path": self.caminhos.get("ASSINATURA_EMAIL", "")
         }
 
         # Configuração da Evolution API rodando no servidor local via Docker

@@ -73,11 +73,6 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None, config_wha
         detalhes_boletos_txt += f"\n-----------------------------------\n"
         detalhes_boletos_txt += f"💳 *Parcela {parcela}* — Vencimento: *{venc_fmt}* — Valor: *R$ {valor}*\n"
         
-        if linha_dig:
-            detalhes_boletos_txt += f"🔢 *Linha Digitável:*\n`{linha_dig}`\n"
-        if pix:
-            detalhes_boletos_txt += f"🔗 *Pix Copia e Cole:*\n`{pix}`\n"
-
     mensagem = (
         f"Olá *{cliente_nome}*, tudo bem?\n\n"
         f"Informamos que as notas fiscais, XMLs e boletos {referencia_texto} da *RONDOCHASSIS* estão sendo encaminhados.\n\n"
