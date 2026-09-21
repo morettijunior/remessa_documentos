@@ -226,11 +226,12 @@ class AppRemessa:
                     if not arquivos.get("PEDIDO"):
                         falhas_arquivos.append("Pedido (PDF)")
                     
-                    # Verifica individualmente NFe e NFS para clareza no log
-                    tem_nfs = bool(arquivos.get("NFS_PDF"))
-                    tem_nfe = bool(arquivos.get("NFE_PDF"))
-                    if not tem_nfs and not tem_nfe:
-                        falhas_arquivos.append("Nenhuma Nota Fiscal encontrada (NFS ou NFe PDF)")
+                    # Verifica individualmente NFe e NFS com base no que o pedido realmente possui
+                    if dados_pedido.get("NFS") and not arquivos.get("NFS_PDF"):
+                        falhas_arquivos.append("Nota Fiscal de Serviço (PDF)")
+                        
+                    if dados_pedido.get("CHAVEACESSO_NFE") and not arquivos.get("NFE_PDF"):
+                        falhas_arquivos.append("Nota Fiscal de Peças (PDF)")
                         
                     if not caminhos_boletos:
                         falhas_arquivos.append("Boleto (PDF)")
@@ -299,20 +300,39 @@ class AppRemessa:
         self.root.after(0, lambda: self.btn_executar.config(state=tk.NORMAL, text="▶ EXECUTAR DISPAROS"))
 
     def exibir_relatorio_final(self, res_email, res_zap):
-        relatorio = "RELATÓRIO DE PROCESSAMENTO DO LOTE\n" + "="*40 + "\n\n"
+        sucessos = []
+        falhas = []
 
-        if res_email:
-            relatorio += "--- E-MAILS ---\n"
-            for ped, status, motivo in res_email:
-                res_txt = "SUCESSO" if status else f"FALHA ({motivo})"
-                relatorio += f"• Pedido {ped}: {res_txt}\n"
-            relatorio += "\n"
+        # Processa resultados de E-mail
+        for ped, status, motivo in res_email:
+            if status:
+                sucessos.append(f"• E-mail — Pedido {ped}")
+            else:
+                falhas.append(f"• E-mail — Pedido {ped}: {motivo}")
 
-        if res_zap:
-            relatorio += "--- WHATSAPP ---\n"
-            for ped, status, motivo in res_zap:
-                res_txt = "SUCESSO" if status else f"FALHA ({motivo})"
-                relatorio += f"• Pedido {ped}: {res_txt}\n"
+        # Processa resultados de WhatsApp
+        for ped, status, motivo in res_zap:
+            if status:
+                sucessos.append(f"• WhatsApp — Pedido {ped}")
+            else:
+                falhas.append(f"• WhatsApp — Pedido {ped}: {motivo}")
+
+        # Montagem do relatório em 2 blocos principais
+        relatorio = "RELATÓRIO DE PROCESSAMENTO DO LOTE\n" + "=" * 42 + "\n\n"
+
+        relatorio += "✅ ENVIADOS COM SUCESSO:\n"
+        if sucessos:
+            relatorio += "\n".join(sucessos) + "\n"
+        else:
+            relatorio += "Nenhum envio realizado com sucesso.\n"
+
+        relatorio += "\n" + "-" * 42 + "\n\n"
+
+        relatorio += "❌ NÃO ENVIADOS:\n"
+        if falhas:
+            relatorio += "\n".join(falhas) + "\n"
+        else:
+            relatorio += "Nenhuma falha registrada.\n"
 
         messagebox.showinfo("Processamento Concluído", relatorio)
 
