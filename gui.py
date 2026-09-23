@@ -29,7 +29,7 @@ def carregar_caminhos_salvos():
         "DIR_NFE_PDF": "",
         "DIR_NFE_XML": "",
         "DIR_PDF_BOLETO": str(Path.home() / "Documents" / "BoletosGerados"),
-        "DIR_RECURSOS": "",
+        "LOGO_BANCO": "",
         "ASSINATURA_EMAIL": ""
     }
 
@@ -107,7 +107,7 @@ class AppRemessa:
             ("DIR_NFE_PDF", "Pasta Nota Fiscal de Produto (PDF):"),
             ("DIR_NFE_XML", "Pasta Nota Fiscal de Produto (XML):"),
             ("DIR_PDF_BOLETO", "Pasta de Saída dos Boletos (PDF):"),
-            ("DIR_RECURSOS", "Pasta de Recursos (Logo/Boleto):"),
+            ("LOGO_BANCO", "Arquivo da Logo do Banco (756.bmp):"),
             ("ASSINATURA_EMAIL", "Imagem de Assinatura do E-mail (PNG/JPG):")
         ]
 
@@ -120,11 +120,16 @@ class AppRemessa:
             ent.grid(row=idx*2+1, column=0, padx=15, pady=(0, 4))
             entries[chave] = ent
 
-            def escolher_destino(e=ent, eh_arquivo=(chave == "ASSINATURA_EMAIL")):
-                if eh_arquivo:
+            def escolher_destino(e=ent, chave_atual=chave):
+                if chave_atual == "ASSINATURA_EMAIL":
                     caminho = filedialog.askopenfilename(
                         title="Selecione a imagem de assinatura",
                         filetypes=[("Imagens", "*.png *.jpg *.jpeg")]
+                    )
+                elif chave_atual == "LOGO_BANCO":
+                    caminho = filedialog.askopenfilename(
+                        title="Selecione o arquivo da logo do banco",
+                        filetypes=[("Arquivos BMP", "*.bmp"), ("Todos os arquivos", "*.*")]
                     )
                 else:
                     caminho = filedialog.askdirectory()
@@ -215,7 +220,7 @@ class AppRemessa:
                     pasta_boletos = self.caminhos.get("DIR_PDF_BOLETO")
                     if not pasta_boletos:
                         raise ValueError("Diretório de saída dos boletos não configurado.")
-                    caminhos_boletos = gerar_pdf_boleto(dados_pedido, pasta_boletos)
+                    caminhos_boletos = gerar_pdf_boleto(dados_pedido, pasta_boletos, self.caminhos)
 
                     # Valida arquivos obrigatórios de forma detalhada
                     arquivos = verificar_arquivos_pedido(dados_pedido, self.caminhos)
@@ -270,7 +275,7 @@ class AppRemessa:
                     pasta_boletos = self.caminhos.get("DIR_PDF_BOLETO")
                     if not pasta_boletos:
                         raise ValueError("Diretório de saída dos boletos não configurado.")
-                    caminhos_boletos = gerar_pdf_boleto(dados_pedido, pasta_boletos)
+                    caminhos_boletos = gerar_pdf_boleto(dados_pedido, pasta_boletos, self.caminhos)
                     
                     arquivos = verificar_arquivos_pedido(dados_pedido, self.caminhos)
                     arquivos["BOLETOS"] = caminhos_boletos

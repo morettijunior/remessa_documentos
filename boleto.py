@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -29,7 +30,35 @@ def formatar_linha_digitavel(linha):
         return f"{b1} {b2} {b3} {b4} {b5}"
     return linha
 
-def gerar_pdf_boleto(dados_pedido, pasta_destino):
+def obter_caminho_logo(caminhos_config=None, nome_arquivo="756.bmp"):
+    """
+    Localiza o arquivo exato da logo do banco configurado na GUI ou busca nos diretórios padrão.
+    """
+    # 1. Tenta buscar pelo caminho exato do arquivo configurado na GUI (LOGO_BANCO)
+    if caminhos_config and caminhos_config.get("LOGO_BANCO"):
+        caminho_customizado = Path(caminhos_config.get("LOGO_BANCO"))
+        if caminho_customizado.exists():
+            return str(caminho_customizado)
+
+    # 2. Tenta buscar no diretório temporário do PyInstaller (_MEIPASS)
+    if hasattr(sys, '_MEIPASS'):
+        caminho_exe = Path(sys._MEIPASS) / nome_arquivo
+        if caminho_exe.exists():
+            return str(caminho_exe)
+
+    # 3. Tenta buscar na mesma pasta do script principal
+    caminho_local = Path(__file__).parent / nome_arquivo
+    if caminho_local.exists():
+        return str(caminho_local)
+
+    # 4. Fallback final para o diretório de trabalho atual
+    caminho_atual = Path(nome_arquivo)
+    if caminho_atual.exists():
+        return str(caminho_atual)
+        
+    return nome_arquivo
+
+def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
     caminho_saida = Path(pasta_destino)
     caminho_saida.mkdir(parents=True, exist_ok=True)
     
@@ -84,7 +113,8 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
         linha_dig_formatada = formatar_linha_digitavel(linha_dig)
 
         try:
-            logo_banco = Image("756.bmp", width=60, height=15)
+            caminho_logo = obter_caminho_logo(caminhos_config, "756.bmp")
+            logo_banco = Image(caminho_logo, width=60, height=15)
         except Exception:
             logo_banco = Paragraph("<b>SICOOB</b>", style_val)
 
@@ -108,17 +138,17 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
                 Paragraph(f"Pagador<br/><b>{cliente_nome}</b>", style_lbl), 
                 "", 
                 Paragraph(f"Nosso Número<br/><b>{bol_numero}</b>", style_lbl), 
-                Paragraph("[  ] Mudou-se", style_lbl), 
-                Paragraph("[  ] Ausente", style_lbl), 
-                Paragraph("[  ] Não existe nº. indicado", style_lbl)
+                Paragraph("[ &nbsp;] Mudou-se", style_lbl), 
+                Paragraph("[ &nbsp;] Ausente", style_lbl), 
+                Paragraph("[ &nbsp;] Não existe nº. indicado", style_lbl)
             ],
             [
                 Paragraph(f"Vencimento<br/><b>{venc_fmt}</b>", style_lbl), 
                 Paragraph(f"Número do Doc<br/><b>{num_doc}</b>", style_lbl), 
                 Paragraph(f"Espécie<br/><b>R$</b>", style_lbl), 
                 Paragraph(f"Valor do Documento<br/><b>{valor_fmt}</b>", style_lbl), 
-                Paragraph("[  ] Recusado", style_lbl), 
-                Paragraph("[  ] Endereço insuficiente", style_lbl)
+                Paragraph("[ &nbsp;] Recusado", style_lbl), 
+                Paragraph("[ &nbsp;] Endereço insuficiente", style_lbl)
             ],
             [
                 Paragraph("Recebemos o Titulo<br/>com as características acima", style_lbl), 
@@ -126,7 +156,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino):
                 Paragraph("Assinatura<br/>____________________", style_lbl), 
                 Paragraph("Data<br/>____/____/______", style_lbl), 
                 Paragraph("Assinatura<br/>____________________", style_lbl), 
-                Paragraph("[  ] Desconhecido<br/>[  ] Outros (anotar no verso)", style_lbl)
+                Paragraph("[ &nbsp;] Desconhecido<br/>[ &nbsp;] Outros (anotar no verso)", style_lbl)
             ],
             [
                 Paragraph("Local de Pagamento<br/><b>Pagavel em qualquer Banco</b>", style_lbl), 
