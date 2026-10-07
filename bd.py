@@ -47,7 +47,6 @@ def consultar_pedido(numero_input):
 
     try:
         # 1. Busca o movimento principal na TMOV filtrando apenas vendas (Exclui Compras tipo EC)
-        # Ajuste as séries abaixo caso sua empresa utilize outras siglas de venda além de 'EV' e 'OS'
         query_mov = """
             SELECT IDMOV, NUMEROMOV, SERIE, IDMOVRELAC, CODCFO, OB_NUMEROSERIE 
             FROM TMOV 
@@ -63,6 +62,7 @@ def consultar_pedido(numero_input):
 
         id_mov, num_mov, serie, id_mov_relac, cod_cfo, placa = mov_principal
         eh_os = id_mov_relac is not None
+        cliente_cfo = cod_cfo.strip() if cod_cfo else None
 
         dados = {
             "NUMERO_PEDIDO": num_limpo,  # Pedido sem zeros (ex: 32257)
@@ -77,7 +77,7 @@ def consultar_pedido(numero_input):
             "NFS": None,
             "RPS": None,
             "PLACA": placa.strip() if placa else None,
-            "CODCFO": cod_cfo.strip() if cod_cfo else None,
+            "CODCFO": cliente_cfo,
             "CLIENTE_NOME": None,
             "CLIENTE_DOC": None,
             # Endereço Principal (para Nota Fiscal)
@@ -133,14 +133,14 @@ def consultar_pedido(numero_input):
                 if tnfe_res and tnfe_res[0]:
                     dados["CHAVEACESSO_NFE"] = str(tnfe_res[0]).strip()
 
-                # Extrai Ano e Mês da data de emissão (ex: 2026-08-20 -> 202608)
+                # Extrai Ano e Mês da data de emissão
                 if data_emissao:
                     data_str = str(data_emissao).split()[0]
                     partes = data_str.split("-")
                     if len(partes) >= 2:
                         dados["ANO_MES_NFE"] = f"{partes[0]}{partes[1]}"
 
-                # Monta o caminho do XML: C:\TGA\Nfe\XML\202609\NFe\chavedeacesso-nfe.xml
+                # Monta o caminho do XML
                 if dados["CHAVEACESSO_NFE"] and dados["ANO_MES_NFE"]:
                     pasta_base_xmls = r"C:\TGA\Nfe\XML"
                     caminho_xml_gerado = Path(pasta_base_xmls) / dados["ANO_MES_NFE"] / "NFe" / f"{dados['CHAVEACESSO_NFE']}-nfe.xml"
@@ -156,7 +156,7 @@ def consultar_pedido(numero_input):
                 if nfse_res:
                     dados["NFS"] = str(nfse_res[0]).strip()
 
-        # --- BUSCA NA FLAN SEGUINDO A REGRA DE 4 ETAPAS COM VALIDAÇÃO DE BOLETO ---
+        # --- BUSCA NA FLAN FILTRANDO POR NÚMERO E ESTRIATAMENTE PELO CLIENTE (CODCFO) ---
         lancamentos_flan = []
 
         doc_pedido = num_formatado  # 1º: Pedido com 00
@@ -172,8 +172,8 @@ def consultar_pedido(numero_input):
         )  # 4º: Manual NFE/NFS limpo
 
         def consultar_flan_com_boleto(doc):
-            """Consulta a FLAN usando TRIM para garantir o match e valida se possui dados de boleto/PIX."""
-            if not doc:
+            """Consulta a FLAN filtrando pelo número do documento e pelo CODCFO do cliente, validando dados de boleto."""
+            if not doc or not cliente_cfo:
                 return []
             
             doc_limpo = str(doc).strip()
@@ -181,9 +181,10 @@ def consultar_pedido(numero_input):
                 SELECT PARCELA, CODCFO, NUMERODOCUMENTO, DATAVENCIMENTO, VALORORIGINAL, CODBARRABOLETO, LINHADIGITAVELBOLETO, QRCODEPIX, BOL_NUMERO 
                 FROM FLAN 
                 WHERE TRIM(NUMERODOCUMENTO) = ? 
+                  AND TRIM(CODCFO) = ?
                 ORDER BY PARCELA
             """
-            cursor.execute(q, (doc_limpo,))
+            cursor.execute(q, (doc_limpo, cliente_cfo))
             rows = cursor.fetchall()
 
             if not rows:
@@ -220,9 +221,6 @@ def consultar_pedido(numero_input):
 
         for flan in lancamentos_flan:
             parcela, cfo_flan, num_doc, dt_venc, val_orig, cod_barras, linha_dig, pix, bol_num = flan
-            if cfo_flan and not dados["CODCFO"]:
-                dados["CODCFO"] = cfo_flan.strip()
-
             num_doc_limpo = num_doc.strip() if num_doc else ""
             chave_unica = (parcela, num_doc_limpo)
 
@@ -239,7 +237,7 @@ def consultar_pedido(numero_input):
                     "QRCODEPIX": pix.strip() if (pix and str(pix).strip() != "None") else None,
                 })
 
-        # 4. Buscar dados completos do cliente na FCFO (Nota vs. Cobrança)
+        # 4. Buscar dados completos do cliente na FCFO
         if dados["CODCFO"]:
             query_fcfo = """
                 SELECT NOME, EMAIL, FAX, CGCCFO, 
