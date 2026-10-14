@@ -97,7 +97,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
         doc = SimpleDocTemplate(
             str(caminho_arquivo),
             pagesize=letter,
-            rightMargin=14, leftMargin=14, topMargin=12, bottomMargin=12
+            rightMargin=14, leftMargin=14, topMargin=10, bottomMargin=10
         )
         
         story = []
@@ -119,74 +119,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
             logo_banco = Paragraph("<b>SICOOB</b>", style_val)
 
         # -------------------------------------------------------------
-        # 1. COMPROVANTE DE ENTREGA 
-        # -------------------------------------------------------------
-        comp_data = [
-            [
-                logo_banco, 
-                Paragraph("<b>756-0</b>", style_banco_cod), 
-                Paragraph("<b>Comprovante de Entrega</b>", ParagraphStyle('Tit', parent=style_val, fontSize=11)), 
-                "", "", ""
-            ],
-            [
-                Paragraph(f"Beneficiário<br/><b>{beneficiario_nome}</b>", style_lbl), 
-                "", 
-                Paragraph(f"Agencia / Codigo Beneficiário<br/><b>{agencia_codigo}</b>", style_lbl), 
-                Paragraph("Motivo de nao entrega. (Para uso da empresa entregadora)", style_lbl), "", ""
-            ],
-            [
-                Paragraph(f"Pagador<br/><b>{cliente_nome}</b>", style_lbl), 
-                "", 
-                Paragraph(f"Nosso Número<br/><b>{bol_numero}</b>", style_lbl), 
-                Paragraph("[ &nbsp;] Mudou-se", style_lbl), 
-                Paragraph("[ &nbsp;] Ausente", style_lbl), 
-                Paragraph("[ &nbsp;] Não existe nº. indicado", style_lbl)
-            ],
-            [
-                Paragraph(f"Vencimento<br/><b>{venc_fmt}</b>", style_lbl), 
-                Paragraph(f"Número do Doc<br/><b>{num_doc}</b>", style_lbl), 
-                Paragraph(f"Espécie<br/><b>R$</b>", style_lbl), 
-                Paragraph(f"Valor do Documento<br/><b>{valor_fmt}</b>", style_lbl), 
-                Paragraph("[ &nbsp;] Recusado", style_lbl), 
-                Paragraph("[ &nbsp;] Endereço insuficiente", style_lbl)
-            ],
-            [
-                Paragraph("Recebemos o Titulo<br/>com as características acima", style_lbl), 
-                Paragraph("Data<br/>___/___/___", style_lbl), 
-                Paragraph("Assinatura<br/>____________________", style_lbl), 
-                Paragraph("Data<br/>____/____/______", style_lbl), 
-                Paragraph("Assinatura<br/>____________________", style_lbl), 
-                Paragraph("[ &nbsp;] Desconhecido<br/>[ &nbsp;] Outros (anotar no verso)", style_lbl)
-            ],
-            [
-                Paragraph("Local de Pagamento<br/><b>Pagavel em qualquer Banco</b>", style_lbl), 
-                "", "", "", 
-                Paragraph("Data do Processamento<br/><b>11/09/2026</b>", style_lbl), 
-                ""
-            ]
-        ]
-        
-        tabela_comp = Table(comp_data, colWidths=[70, 65, 105, 95, 95, 156])
-        tabela_comp.setStyle(TableStyle([
-            ('BOX', (0,0), (-1,-1), 1, colors.black),
-            ('INNERGRID', (0,0), (-1,-1), 0.5, colors.black),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('PADDING', (0,0), (-1,-1), 1.5),
-            ('SPAN', (2,0), (5,0)),
-            ('SPAN', (0,1), (1,1)), 
-            ('SPAN', (3,1), (5,1)), 
-            ('SPAN', (0,2), (1,2)), 
-            ('SPAN', (4,3), (5,3)), 
-            ('SPAN', (0,5), (3,5)), 
-            ('SPAN', (4,5), (5,5)), 
-        ]))
-        story.append(tabela_comp)
-        story.append(Spacer(1, 1.5))
-        story.append(Paragraph("- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -", style_pontilhado))
-        story.append(Spacer(1, 1.5))
-
-        # -------------------------------------------------------------
-        # 2. RECIBO DO PAGADOR
+        # 1. RECIBO DO PAGADOR
         # -------------------------------------------------------------
         recibo_data = [
             [
@@ -277,12 +210,12 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
             ('SPAN', (0,11), (3,11)), ('SPAN', (4,11), (5,11)),
         ]))
         story.append(tabela_recibo)
-        story.append(Spacer(1, 1.5))
+        story.append(Spacer(1, 4))
         story.append(Paragraph("- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -", style_pontilhado))
-        story.append(Spacer(1, 1.5))
+        story.append(Spacer(1, 4))
 
         # -------------------------------------------------------------
-        # 3. FICHA DE COMPENSAÇÃO
+        # 2. FICHA DE COMPENSAÇÃO
         # -------------------------------------------------------------
         qr_drawing = None
         if pix:
@@ -291,7 +224,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
                 bounds = qr.getBounds()
                 w = bounds[2] - bounds[0]
                 h = bounds[3] - bounds[1]
-                qr_drawing = Drawing(55, 55, transform=[55/w, 0, 0, 55/h, 0, 0])
+                qr_drawing = Drawing(50, 50, transform=[50/w, 0, 0, 50/h, 0, 0])
                 qr_drawing.add(qr)
             except Exception:
                 qr_drawing = Paragraph("[QR CODE]", style_lbl)
@@ -387,7 +320,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
             ('SPAN', (0,11), (3,11)), ('SPAN', (4,11), (5,11)),
         ]))
         story.append(tabela_ficha)
-        story.append(Spacer(1, 2))
+        story.append(Spacer(1, 3))
 
         if linha_dig:
             try:
@@ -407,7 +340,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
                     codigo_barras_44 = nums_limpos[:44]
 
                 if len(codigo_barras_44) == 44:
-                    barcode = code128.Code128(codigo_barras_44, barWidth=1.3, barHeight=30)
+                    barcode = code128.Code128(codigo_barras_44, barWidth=1.3, barHeight=28)
                     story.append(barcode)
                     story.append(Spacer(1, 1))
             except Exception:
