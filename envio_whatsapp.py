@@ -1,12 +1,3 @@
-# ==============================================================================
-# INSTRUÇÕES DE ACESSO E CONFIGURAÇÃO DA EVOLUTION API (RONDOCHASSIS)
-# ==============================================================================
-# Servidor Docker Local: http://servidor:8080 (ou http://localhost:8080 no servidor)
-# Nome da Instância:     rondochassis
-# API Key / Token:       RondoChassis2026*
-# Painel Gerenciador:    http://servidor:8080/manager (para reconectar QR Code se necessário)
-# ==============================================================================
-
 import time
 import base64
 import requests
@@ -30,7 +21,7 @@ def limpar_telefone(telefone):
 
 def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None, config_whatsapp=None, enviar_com_anexos=False):
     """
-    Envia a notificação de cobrança e os arquivos anexados (PDFs/XMLs) 
+    Envia a notificação de cobrança formatada dinamicamente e os arquivos anexados 
     via Evolution API hospedada localmente.
     """
     if not config_whatsapp:
@@ -54,6 +45,33 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None, config_wha
     os_valor = dados_pedido.get("OS")
     placa = dados_pedido.get("PLACA", "")
     
+    # Identifica o que realmente existe nos arquivos encontrados
+    tem_pedido = bool(arquivos_encontrados and arquivos_encontrados.get("PEDIDO") and Path(arquivos_encontrados.get("PEDIDO")).exists())
+    tem_nfs = bool(arquivos_encontrados and arquivos_encontrados.get("NFS_PDF") and Path(arquivos_encontrados.get("NFS_PDF")).exists())
+    tem_nfe_pdf = bool(arquivos_encontrados.get("NFE_PDF") and Path(arquivos_encontrados.get("NFE_PDF")).exists())
+    tem_nfe_xml = bool(arquivos_encontrados.get("NFE_XML") and Path(arquivos_encontrados.get("NFE_XML")).exists())
+    
+    lista_boletos_anexos = arquivos_encontrados.get("BOLETOS", []) if arquivos_encontrados else []
+    qtd_boletos = len([b for b in lista_boletos_anexos if b and Path(b).exists()])
+
+    # Monta a descrição dinâmica dos documentos que estão sendo enviados
+    docs_enviados = []
+    if tem_nfs or tem_nfe_pdf:
+        docs_enviados.append("as notas fiscais")
+    if tem_nfe_xml:
+        docs_enviados.append("os arquivos XMLs")
+    if tem_pedido:
+        docs_enviados.append(f"o pedido {numero_pedido}")
+    if qtd_boletos > 0:
+        docs_enviados.append("o(s) boleto(s)")
+
+    if len(docs_enviados) > 1:
+        texto_docs = ", ".join(docs_enviados[:-1]) + " e " + docs_enviados[-1]
+    elif len(docs_enviados) == 1:
+        texto_docs = docs_enviados[0]
+    else:
+        texto_docs = "os documentos"
+
     if os_valor:
         referencia_texto = f"referente aos materiais e serviços prestados no veículo de placa {placa} (O.S. {os_valor})"
     else:
@@ -67,15 +85,13 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None, config_wha
         vencimento = bol.get("VENCIMENTO", "")
         venc_fmt = "/".join(vencimento.split("-")[::-1]) if "-" in vencimento else vencimento
         valor = formatar_moeda(bol.get("VALOR", 0.0))
-        pix = bol.get("QRCODEPIX", "")
-        linha_dig = bol.get("LINHADIGITAVELBOLETO", "")
         
         detalhes_boletos_txt += f"\n-----------------------------------\n"
         detalhes_boletos_txt += f"💳 *Parcela {parcela}* — Vencimento: *{venc_fmt}* — Valor: *R$ {valor}*\n"
         
     mensagem = (
         f"Olá *{cliente_nome}*, tudo bem?\n\n"
-        f"Informamos que as notas fiscais, XMLs e boletos {referencia_texto} da *RONDOCHASSIS* estão sendo encaminhados.\n\n"
+        f"Informamos que {texto_docs} {referencia_texto} da *RONDOCHASSIS* estão sendo encaminhados.\n\n"
         f"Abaixo estão os detalhes para pagamento:\n"
         f"{detalhes_boletos_txt}\n\n"
         f"Qualquer dúvida, estamos à disposição!\n"
@@ -122,7 +138,6 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None, config_wha
                 print(f"📤 Enviando anexo: {path_obj.name}...")
 
                 try:
-                    # Converte o arquivo local para Base64
                     with open(path_obj, "rb") as f:
                         encoded_file = base64.b64encode(f.read()).decode("utf-8")
 
@@ -144,7 +159,6 @@ def enviar_whatsapp_cobranca(dados_pedido, arquivos_encontrados=None, config_wha
                     else:
                         print(f"⚠️ Erro ao enviar arquivo {path_obj.name}: {resp_media.text}")
                     
-                    # Pequena pausa entre o envio de múltiplos arquivos para não sobrecarregar a fila do WhatsApp
                     time.sleep(1.5)
 
                 except Exception as ex_media:
