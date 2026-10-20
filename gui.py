@@ -30,7 +30,17 @@ def carregar_caminhos_salvos():
         "DIR_NFE_XML": "",
         "DIR_PDF_BOLETO": str(Path.home() / "Documents" / "BoletosGerados"),
         "LOGO_BANCO": "",
-        "ASSINATURA_EMAIL": ""
+        "ASSINATURA_EMAIL": "",
+        # Credenciais protegidas (carregam valores padrão iniciais, mas ficam salvas no JSON local)
+        "SMTP_HOST": "smtp.hostinger.com",
+        "SMTP_PORT": "465",
+        "IMAP_HOST": "imap.hostinger.com",
+        "IMAP_PORT": "993",
+        "EMAIL_REMETENTE": "financeiro@rondochassis.com.br",
+        "EMAIL_SENHA": "rondoCh@ss1s",
+        "WHATSAPP_URL": "http://servidor:8080",
+        "WHATSAPP_INSTANCE": "rondochassis",
+        "WHATSAPP_APIKEY": "RondoChassis2026*"
     }
 
 def salvar_caminhos_no_disco(caminhos):
@@ -95,8 +105,8 @@ class AppRemessa:
 
     def abrir_janela_configuracoes(self):
         janela_cfg = tk.Toplevel(self.root)
-        janela_cfg.title("Configuração de Diretórios e Assinatura")
-        janela_cfg.geometry("600x520")
+        janela_cfg.title("Configuração de Diretórios, E-mail e WhatsApp")
+        janela_cfg.geometry("620x680")
         janela_cfg.grab_set()
 
         entries = {}
@@ -108,44 +118,53 @@ class AppRemessa:
             ("DIR_NFE_XML", "Pasta Nota Fiscal de Produto (XML):"),
             ("DIR_PDF_BOLETO", "Pasta de Saída dos Boletos (PDF):"),
             ("LOGO_BANCO", "Arquivo da Logo do Banco (756.bmp):"),
-            ("ASSINATURA_EMAIL", "Imagem de Assinatura do E-mail (PNG/JPG):")
+            ("ASSINATURA_EMAIL", "Imagem de Assinatura do E-mail (PNG/JPG):"),
+            ("EMAIL_REMETENTE", "E-mail Remetente (Financeiro):"),
+            ("EMAIL_SENHA", "Senha do E-mail:"),
+            ("WHATSAPP_URL", "URL Base do WhatsApp (Evolution API):"),
+            ("WHATSAPP_INSTANCE", "Instância do WhatsApp:"),
+            ("WHATSAPP_APIKEY", "API Key do WhatsApp:")
         ]
 
         for idx, (chave, label_txt) in enumerate(chaves):
             lbl = tk.Label(janela_cfg, text=label_txt, font=("Arial", 9))
-            lbl.grid(row=idx*2, column=0, sticky="w", padx=15, pady=(6, 0))
+            lbl.grid(row=idx*2, column=0, sticky="w", padx=15, pady=(4, 0))
 
-            ent = tk.Entry(janela_cfg, width=60, font=("Arial", 9))
+            # Mascara caracteres se for campo de senha ou API Key
+            show_char = "*" if chave in ("EMAIL_SENHA", "WHATSAPP_APIKEY") else None
+            ent = tk.Entry(janela_cfg, width=55, font=("Arial", 9), show=show_char)
             ent.insert(0, self.caminhos.get(chave, ""))
-            ent.grid(row=idx*2+1, column=0, padx=15, pady=(0, 4))
+            ent.grid(row=idx*2+1, column=0, padx=15, pady=(0, 2))
             entries[chave] = ent
 
-            def escolher_destino(e=ent, chave_atual=chave):
-                if chave_atual == "ASSINATURA_EMAIL":
-                    caminho = filedialog.askopenfilename(
-                        title="Selecione a imagem de assinatura",
-                        filetypes=[("Imagens", "*.png *.jpg *.jpeg")]
-                    )
-                elif chave_atual == "LOGO_BANCO":
-                    caminho = filedialog.askopenfilename(
-                        title="Selecione o arquivo da logo do banco",
-                        filetypes=[("Arquivos BMP", "*.bmp"), ("Todos os arquivos", "*.*")]
-                    )
-                else:
-                    caminho = filedialog.askdirectory()
-                
-                if caminho:
-                    e.delete(0, tk.END)
-                    e.insert(0, caminho)
+            # Apenas chaves de diretório/arquivos ganham botão de procurar
+            if chave in ("DIR_PEDIDO", "DIR_NFS_PDF", "DIR_NFS_XML", "DIR_NFE_PDF", "DIR_NFE_XML", "DIR_PDF_BOLETO", "LOGO_BANCO", "ASSINATURA_EMAIL"):
+                def escolher_destino(e=ent, chave_atual=chave):
+                    if chave_atual == "ASSINATURA_EMAIL":
+                        caminho = filedialog.askopenfilename(
+                            title="Selecione a imagem de assinatura",
+                            filetypes=[("Imagens", "*.png *.jpg *.jpeg")]
+                        )
+                    elif chave_atual == "LOGO_BANCO":
+                        caminho = filedialog.askopenfilename(
+                            title="Selecione o arquivo da logo do banco",
+                            filetypes=[("Arquivos BMP", "*.bmp"), ("Todos os arquivos", "*.*")]
+                        )
+                    else:
+                        caminho = filedialog.askdirectory()
+                    
+                    if caminho:
+                        e.delete(0, tk.END)
+                        e.insert(0, caminho)
 
-            btn_browse = tk.Button(janela_cfg, text="Procurar...", command=escolher_destino)
-            btn_browse.grid(row=idx*2+1, column=1, padx=5)
+                btn_browse = tk.Button(janela_cfg, text="Procurar...", command=escolher_destino)
+                btn_browse.grid(row=idx*2+1, column=1, padx=5)
 
         def salvar():
             for chave, ent in entries.items():
                 self.caminhos[chave] = ent.get().strip()
             salvar_caminhos_no_disco(self.caminhos)
-            messagebox.showinfo("Sucesso", "Configurações salvas com sucesso!", parent=janela_cfg)
+            messagebox.showinfo("Sucesso", "Configurações e credenciais salvas com sucesso!", parent=janela_cfg)
             janela_cfg.destroy()
 
         btn_salvar = tk.Button(janela_cfg, text="Salvar Configurações", font=("Arial", 10, "bold"), bg="#007bff", fg="white", command=salvar)
@@ -181,21 +200,21 @@ class AppRemessa:
             self.root.after(0, lambda: self.btn_executar.config(state=tk.NORMAL, text="▶ EXECUTAR DISPAROS"))
             return
 
+        # Carrega as credenciais dinamicamente a partir do arquivo seguro em Meus Documentos
         config_email = {
-            "smtp_host": "smtp.hostinger.com",
-            "smtp_port": 465,
-            "imap_host": "imap.hostinger.com",
-            "imap_port": 993,
-            "remetente": "financeiro@rondochassis.com.br",
-            "senha": "rondoCh@ss1s",
+            "smtp_host": self.caminhos.get("SMTP_HOST", "smtp.hostinger.com"),
+            "smtp_port": int(self.caminhos.get("SMTP_PORT", 465)),
+            "imap_host": self.caminhos.get("IMAP_HOST", "imap.hostinger.com"),
+            "imap_port": int(self.caminhos.get("IMAP_PORT", 993)),
+            "remetente": self.caminhos.get("EMAIL_REMETENTE", ""),
+            "senha": self.caminhos.get("EMAIL_SENHA", ""),
             "assinatura_path": self.caminhos.get("ASSINATURA_EMAIL", "")
         }
 
-        # Configuração da Evolution API rodando no servidor local via Docker
         config_whatsapp = {
-            "url_base": "http://servidor:8080",
-            "instance": "rondochassis",
-            "apikey": "RondoChassis2026*"
+            "url_base": self.caminhos.get("WHATSAPP_URL", "http://servidor:8080"),
+            "instance": self.caminhos.get("WHATSAPP_INSTANCE", "rondochassis"),
+            "apikey": self.caminhos.get("WHATSAPP_APIKEY", "")
         }
 
         resultados_email = []
@@ -231,7 +250,6 @@ class AppRemessa:
                     if not arquivos.get("PEDIDO"):
                         falhas_arquivos.append("Pedido (PDF)")
                     
-                    # Verifica individualmente NFe e NFS com base no que o pedido realmente possui
                     if dados_pedido.get("NFS") and not arquivos.get("NFS_PDF"):
                         falhas_arquivos.append("Nota Fiscal de Serviço (PDF)")
                         
@@ -271,7 +289,7 @@ class AppRemessa:
                     if not telefone_raw:
                         raise ValueError(f"Cliente '{dados_pedido.get('CLIENTE_NOME')}' não possui número de WhatsApp válido.")
 
-                    # Gera boletos (necessário para extrair Pix e Linha Digitável para o texto)
+                    # Gera boletos
                     pasta_boletos = self.caminhos.get("DIR_PDF_BOLETO")
                     if not pasta_boletos:
                         raise ValueError("Diretório de saída dos boletos não configurado.")
@@ -284,7 +302,7 @@ class AppRemessa:
                     if not caminhos_boletos:
                         raise ValueError("Boleto não gerado. Impossível enviar dados de pagamento via WhatsApp.")
 
-                    # Dispara via Evolution API (com envio opcional de anexos em PDF/XML)
+                    # Dispara via Evolution API
                     enviar_whatsapp_cobranca(
                         dados_pedido=dados_pedido, 
                         arquivos_encontrados=arquivos, 
@@ -308,21 +326,18 @@ class AppRemessa:
         sucessos = []
         falhas = []
 
-        # Processa resultados de E-mail
         for ped, status, motivo in res_email:
             if status:
                 sucessos.append(f"• E-mail — Pedido {ped}")
             else:
                 falhas.append(f"• E-mail — Pedido {ped}: {motivo}")
 
-        # Processa resultados de WhatsApp
         for ped, status, motivo in res_zap:
             if status:
                 sucessos.append(f"• WhatsApp — Pedido {ped}")
             else:
                 falhas.append(f"• WhatsApp — Pedido {ped}: {motivo}")
 
-        # Montagem do relatório em 2 blocos principais
         relatorio = "RELATÓRIO DE PROCESSAMENTO DO LOTE\n" + "=" * 42 + "\n\n"
 
         relatorio += "✅ ENVIADOS COM SUCESSO:\n"
