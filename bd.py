@@ -147,14 +147,19 @@ def consultar_pedido(numero_input):
                     if caminho_xml_gerado.exists():
                         dados["XML"] = str(caminho_xml_gerado)
 
-            elif f_serie_limpa.upper() == "NFS":
+            elif f_serie_limpa.upper() in ("NFS", "005"):
                 rps_encontrado = f_num.strip()
                 dados["RPS"] = rps_encontrado
-                query_nfse = "SELECT NUMERONFSE FROM TNFEMUNICIPAL WHERE IDMOV = ?"
+                
+                # Busca o Número da NFS e o Recibo na TNFEMUNICIPAL
+                query_nfse = "SELECT NUMERONFSE, RECIBO FROM TNFEMUNICIPAL WHERE IDMOV = ?"
                 cursor.execute(query_nfse, (f_id,))
                 nfse_res = cursor.fetchone()
                 if nfse_res:
-                    dados["NFS"] = str(nfse_res[0]).strip()
+                    if nfse_res[0]:
+                        dados["NFS"] = str(nfse_res[0]).strip()
+                    if nfse_res[1]:
+                        dados["RECIBO_NFS"] = str(nfse_res[1]).strip() # Novo campo do recibo
 
         # --- BUSCA NA FLAN FILTRANDO POR NÚMERO E ESTRIATAMENTE PELO CLIENTE (CODCFO) ---
         lancamentos_flan = []

@@ -30,14 +30,15 @@ def verificar_arquivos_pedido(dados_pedido, caminhos_config):
         if caminho_pedido.exists():
             arquivos_encontrados["PEDIDO"] = str(caminho_pedido)
 
-    # 2. Caminho da NFS PDF (Ex: \\Servidor\tga\NFS-e\XML\18879-nfse.pdf)
+    # 2. Caminho da NFS PDF (Baseado no RECIBO da NFS-e Nacional, ex: 123456-nfse.pdf)
     dir_nfs = caminhos_config.get("DIR_NFS_PDF")
-    numero_nfs = str(dados_pedido.get("NFS", "")).strip()
-    if numero_nfs and dir_nfs:
+    recibo_nfs = str(dados_pedido.get("RECIBO_NFS", "")).strip()
+    
+    if recibo_nfs and dir_nfs:
         pasta_nfs = Path(dir_nfs)
-        caminho_nfs = pasta_nfs / f"{numero_nfs}-nfse.pdf"
+        caminho_nfs = pasta_nfs / f"{recibo_nfs}-nfse.pdf"
         if not caminho_nfs.exists():
-            caminho_nfs_alt = pasta_nfs / f"{numero_nfs}-nfse.PDF"
+            caminho_nfs_alt = pasta_nfs / f"{recibo_nfs}-nfse.PDF"
             if caminho_nfs_alt.exists():
                 caminho_nfs = caminho_nfs_alt
 

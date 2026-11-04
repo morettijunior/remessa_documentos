@@ -31,7 +31,6 @@ def carregar_caminhos_salvos():
         "DIR_PDF_BOLETO": str(Path.home() / "Documents" / "BoletosGerados"),
         "LOGO_BANCO": "",
         "ASSINATURA_EMAIL": "",
-        # Credenciais protegidas (carregam valores padrão iniciais, mas ficam salvas no JSON local)
         "SMTP_HOST": "smtp.hostinger.com",
         "SMTP_PORT": "465",
         "IMAP_HOST": "imap.hostinger.com",
@@ -52,7 +51,8 @@ def salvar_caminhos_no_disco(caminhos):
 class AppRemessa:
     def __init__(self, root):
         self.root = root
-        self.root.title("Rondochassis - Central de Remessa de Documentos")
+        # Versão 1.0.1 aplicada no título da aplicação
+        self.root.title("Rondochassis - Central de Remessa de Documentos (Versão 1.0.1)")
         self.root.geometry("750x660")
         self.root.minsize(700, 580)
 
@@ -96,12 +96,16 @@ class AppRemessa:
         btn_config = tk.Button(frame_acoes, text="⚙ Configurar Pastas", font=("Arial", 10), padx=10, pady=8, command=self.abrir_janela_configuracoes)
         btn_config.pack(side="right")
 
-        # --- RODAPÉ DISCRETO (LOG TÉCNICO) ---
+        # --- RODAPÉ DISCRETO (LOG TÉCNICO E VERSÕES) ---
         frame_rodape = tk.Frame(self.root, pady=10)
         frame_rodape.pack(side="bottom", fill="x", padx=20)
 
         self.btn_log = tk.Button(frame_rodape, text="🔍 Log Técnico", font=("Arial", 8), fg="#666", relief="flat", command=self.abrir_janela_log)
-        self.btn_log.pack(side="right")
+        self.btn_log.pack(side="right", padx=(5, 0))
+
+        # Novo botão de Histórico de Versões ao lado do Log Técnico
+        self.btn_versoes = tk.Button(frame_rodape, text="📋 Versões", font=("Arial", 8, "bold"), fg="#0056b3", relief="flat", command=self.abrir_janela_versoes)
+        self.btn_versoes.pack(side="right")
 
     def abrir_janela_configuracoes(self):
         janela_cfg = tk.Toplevel(self.root)
@@ -130,14 +134,12 @@ class AppRemessa:
             lbl = tk.Label(janela_cfg, text=label_txt, font=("Arial", 9))
             lbl.grid(row=idx*2, column=0, sticky="w", padx=15, pady=(4, 0))
 
-            # Mascara caracteres se for campo de senha ou API Key
             show_char = "*" if chave in ("EMAIL_SENHA", "WHATSAPP_APIKEY") else None
             ent = tk.Entry(janela_cfg, width=55, font=("Arial", 9), show=show_char)
             ent.insert(0, self.caminhos.get(chave, ""))
             ent.grid(row=idx*2+1, column=0, padx=15, pady=(0, 2))
             entries[chave] = ent
 
-            # Apenas chaves de diretório/arquivos ganham botão de procurar
             if chave in ("DIR_PEDIDO", "DIR_NFS_PDF", "DIR_NFS_XML", "DIR_NFE_PDF", "DIR_NFE_XML", "DIR_PDF_BOLETO", "LOGO_BANCO", "ASSINATURA_EMAIL"):
                 def escolher_destino(e=ent, chave_atual=chave):
                     if chave_atual == "ASSINATURA_EMAIL":
@@ -181,11 +183,34 @@ class AppRemessa:
         txt_log.insert(tk.END, self.log_detalhado_texto if self.log_detalhado_texto else "Nenhum log registrado nesta sessão.")
         txt_log.config(state=tk.DISABLED)
 
+    def abrir_janela_versoes(self):
+        janela_ver = tk.Toplevel(self.root)
+        janela_ver.title("Histórico de Alterações e Versões")
+        janela_ver.geometry("600x400")
+        janela_ver.grab_set()
+
+        txt_ver = scrolledtext.ScrolledText(janela_ver, wrap=tk.WORD, font=("Arial", 10))
+        txt_ver.pack(fill="both", expand=True, padx=15, pady=15)
+        
+        # Texto descritivo das versões (fácil de atualizar futuramente)
+        historico = (
+            "========================================\n"
+            "   HISTÓRICO DE VERSÕES - RONDOCHASSIS\n"
+            "========================================\n\n"
+            "• Versão 1.0.1 (Data: 04/11/2026)\n"
+            "  - Atualização estrutural para suporte à NFS-e Nacional (série 005 e associação por Recibo).\n"
+            "  - Formatação 100% dinâmica de textos e assuntos de E-mail e WhatsApp por documento.\n"
+            "  - Isolamento de credenciais e API Keys na pasta local (Meus Documentos) por segurança.\n\n"
+            "• Versão 1.0.0\n"
+            "  - Lançamento inicial da Central de Automação e Remessa (Tkinter + Firebird + Sicoob).\n"
+        )
+        
+        txt_ver.insert(tk.END, historico)
+        txt_ver.config(state=tk.DISABLED)
+
     def iniciar_processamento_thread(self):
         self.btn_executar.config(state=tk.DISABLED, text="PROCESSANDO...")
-        self.log_detalhado_texto = "" # Limpa o log anterior
-        
-        # Roda em thread separada para não travar a interface gráfica do Windows
+        self.log_detalhado_texto = ""
         threading.Thread(target=self.processar_lotes, daemon=True).start()
 
     def processar_lotes(self):
@@ -200,7 +225,6 @@ class AppRemessa:
             self.root.after(0, lambda: self.btn_executar.config(state=tk.NORMAL, text="▶ EXECUTAR DISPAROS"))
             return
 
-        # Carrega as credenciais dinamicamente a partir do arquivo seguro em Meus Documentos
         config_email = {
             "smtp_host": self.caminhos.get("SMTP_HOST", "smtp.hostinger.com"),
             "smtp_port": int(self.caminhos.get("SMTP_PORT", 465)),
@@ -220,9 +244,6 @@ class AppRemessa:
         resultados_email = []
         resultados_zap = []
 
-        # ==========================================
-        # 1. PROCESSAMENTO DE E-MAILS
-        # ==========================================
         if lista_emails:
             self.registrar_log("=== INICIANDO LOTE DE E-MAILS ===")
             for num_pedido in lista_emails:
@@ -235,27 +256,21 @@ class AppRemessa:
                     if not dados_pedido.get("EMAIL"):
                         raise ValueError(f"Cliente '{dados_pedido.get('CLIENTE_NOME')}' não possui e-mail cadastrado.")
 
-                    # Gera boletos
                     pasta_boletos = self.caminhos.get("DIR_PDF_BOLETO")
                     if not pasta_boletos:
                         raise ValueError("Diretório de saída dos boletos não configurado.")
                     caminhos_boletos = gerar_pdf_boleto(dados_pedido, pasta_boletos, self.caminhos)
 
-                    # Valida arquivos obrigatórios de forma detalhada
                     arquivos = verificar_arquivos_pedido(dados_pedido, self.caminhos)
                     arquivos["BOLETOS"] = caminhos_boletos
 
                     falhas_arquivos = []
-                    
                     if not arquivos.get("PEDIDO"):
                         falhas_arquivos.append("Pedido (PDF)")
-                    
                     if dados_pedido.get("NFS") and not arquivos.get("NFS_PDF"):
                         falhas_arquivos.append("Nota Fiscal de Serviço (PDF)")
-                        
                     if dados_pedido.get("CHAVEACESSO_NFE") and not arquivos.get("NFE_PDF"):
                         falhas_arquivos.append("Nota Fiscal de Peças (PDF)")
-                        
                     if not caminhos_boletos:
                         falhas_arquivos.append("Boleto (PDF)")
 
@@ -263,7 +278,6 @@ class AppRemessa:
                         detalhe_faltas = ", ".join(falhas_arquivos)
                         raise ValueError(f"Arquivos obrigatórios faltando no disco ({detalhe_faltas}). Envio cancelado.")
 
-                    # Dispara E-mail
                     enviar_email_cobranca(dados_pedido, arquivos, config_email)
                     self.registrar_log(f"[E-mail] Sucesso para o pedido {num_pedido}")
                     resultados_email.append((num_pedido, True, "Enviado com sucesso"))
@@ -273,9 +287,6 @@ class AppRemessa:
                     self.registrar_log(f"[E-mail] FALHA no pedido {num_pedido}: {erro_msg}")
                     resultados_email.append((num_pedido, False, erro_msg))
 
-        # ==========================================
-        # 2. PROCESSAMENTO DE WHATSAPP (EVOLUTION API)
-        # ==========================================
         if lista_zaps:
             self.registrar_log("\n=== INICIANDO LOTE DE WHATSAPP ===")
             for num_pedido in lista_zaps:
@@ -289,7 +300,6 @@ class AppRemessa:
                     if not telefone_raw:
                         raise ValueError(f"Cliente '{dados_pedido.get('CLIENTE_NOME')}' não possui número de WhatsApp válido.")
 
-                    # Gera boletos
                     pasta_boletos = self.caminhos.get("DIR_PDF_BOLETO")
                     if not pasta_boletos:
                         raise ValueError("Diretório de saída dos boletos não configurado.")
@@ -298,11 +308,9 @@ class AppRemessa:
                     arquivos = verificar_arquivos_pedido(dados_pedido, self.caminhos)
                     arquivos["BOLETOS"] = caminhos_boletos
 
-                    # Validação de arquivos essenciais antes do envio
                     if not caminhos_boletos:
                         raise ValueError("Boleto não gerado. Impossível enviar dados de pagamento via WhatsApp.")
 
-                    # Dispara via Evolution API
                     enviar_whatsapp_cobranca(
                         dados_pedido=dados_pedido, 
                         arquivos_encontrados=arquivos, 
@@ -318,7 +326,6 @@ class AppRemessa:
                     self.registrar_log(f"[WhatsApp] FALHA no pedido {num_pedido}: {erro_msg}")
                     resultados_zap.append((num_pedido, False, erro_msg))
 
-        # Exibe relatório amigável ao usuário
         self.root.after(0, lambda: self.exibir_relatorio_final(resultados_email, resultados_zap))
         self.root.after(0, lambda: self.btn_executar.config(state=tk.NORMAL, text="▶ EXECUTAR DISPAROS"))
 
@@ -328,13 +335,17 @@ class AppRemessa:
 
         for ped, status, motivo in res_email:
             if status:
-                sucessos.append(f"• E-mail — Pedido {ped}")
+                sucesss_str = f"• E-mail — Pedido {ped}"
+                if sucesss_str not in sucessos:
+                    sucessos.append(sucesss_str)
             else:
                 falhas.append(f"• E-mail — Pedido {ped}: {motivo}")
 
         for ped, status, motivo in res_zap:
             if status:
-                sucessos.append(f"• WhatsApp — Pedido {ped}")
+                sucesss_str = f"• WhatsApp — Pedido {ped}"
+                if sucesss_str not in sucessos:
+                    sucessos.append(sucesss_str)
             else:
                 falhas.append(f"• WhatsApp — Pedido {ped}: {motivo}")
 
