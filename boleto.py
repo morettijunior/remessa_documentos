@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
@@ -34,24 +35,20 @@ def obter_caminho_logo(caminhos_config=None, nome_arquivo="756.bmp"):
     """
     Localiza o arquivo exato da logo do banco configurado na GUI ou busca nos diretórios padrão.
     """
-    # 1. Tenta buscar pelo caminho exato do arquivo configurado na GUI (LOGO_BANCO)
     if caminhos_config and caminhos_config.get("LOGO_BANCO"):
         caminho_customizado = Path(caminhos_config.get("LOGO_BANCO"))
         if caminho_customizado.exists():
             return str(caminho_customizado)
 
-    # 2. Tenta buscar no diretório temporário do PyInstaller (_MEIPASS)
     if hasattr(sys, '_MEIPASS'):
         caminho_exe = Path(sys._MEIPASS) / nome_arquivo
         if caminho_exe.exists():
             return str(caminho_exe)
 
-    # 3. Tenta buscar na mesma pasta do script principal
     caminho_local = Path(__file__).parent / nome_arquivo
     if caminho_local.exists():
         return str(caminho_local)
 
-    # 4. Fallback final para o diretório de trabalho atual
     caminho_atual = Path(nome_arquivo)
     if caminho_atual.exists():
         return str(caminho_atual)
@@ -71,6 +68,20 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
     cliente_nome = dados_pedido.get("CLIENTE_NOME", "CLIENTE NÃO IDENTIFICADO")
     cliente_doc = dados_pedido.get("CLIENTE_DOC", "")
     
+    # Data de Processamento = Data de Hoje formatada como DD/MM/AAAA
+    data_processamento_fmt = datetime.now().strftime("%d/%m/%Y")
+    
+    # Tenta resgatar a data de emissão do pedido (armazenada no BD ou usa a data de hoje como fallback)
+    data_emissao_raw = dados_pedido.get("DATA_EMISSAO") or dados_pedido.get("DATAEMISSAO") or ""
+    if data_emissao_raw:
+        data_doc_str = str(data_emissao_raw).split()[0]
+        if "-" in data_doc_str:
+            data_doc_fmt = "/".join(data_doc_str.split("-")[::-1])
+        else:
+            data_doc_fmt = data_doc_str
+    else:
+        data_doc_fmt = data_processamento_fmt
+
     # Endereço de cobrança (com fallback para o principal)
     rua = dados_pedido.get("CLIENTE_RUAPGTO") or dados_pedido.get("CLIENTE_RUA") or ""
     num = dados_pedido.get("CLIENTE_NUMEROPGTO") or dados_pedido.get("CLIENTE_NUMERO") or ""
@@ -141,11 +152,11 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
                 "", ""
             ],
             [
-                Paragraph("Data do Documento<br/><b>11/09/2026</b>", style_lbl),
+                Paragraph(f"Data do Documento<br/><b>{data_doc_fmt}</b>", style_lbl),
                 Paragraph(f"Numero do Doc<br/><b>{num_doc}</b>", style_lbl),
                 Paragraph("Especie Doc.<br/><b>DM</b>", style_lbl),
                 Paragraph("Aceite<br/><b>N</b>", style_lbl),
-                Paragraph("Data do Processamento<br/><b>11/09/2026</b>", style_lbl),
+                Paragraph(f"Data do Processamento<br/><b>{data_processamento_fmt}</b>", style_lbl),
                 Paragraph(f"Nosso Número<br/><b>{bol_numero}</b>", style_lbl)
             ],
             [
@@ -159,7 +170,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
             [
                 Paragraph(
                     "Instruções (Texto de responsabilidade do beneficiário.)<br/>"
-                    "TESTE — APOS O VENC. COBRAR MULTA DE 2,00% | JUROS DE 0,17% DIA<br/>"
+                    "APOS O VENC. COBRAR MULTA DE 2,00% | JUROS DE 0,17% DIA<br/>"
                     f"Parcela {parcela} de 1 &nbsp;|&nbsp; Pix Copia e Cole: <font size=5>{pix}</font>",
                     style_lbl
                 ),
@@ -249,11 +260,11 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
                 "", ""
             ],
             [
-                Paragraph("Data do Documento<br/><b>11/09/2026</b>", style_lbl), 
+                Paragraph(f"Data do Documento<br/><b>{data_doc_fmt}</b>", style_lbl), 
                 Paragraph(f"Número do Doc<br/><b>{num_doc}</b>", style_lbl), 
                 Paragraph("Espécie Doc.<br/><b>DM</b>", style_lbl), 
                 Paragraph("Aceite<br/><b>N</b>", style_lbl), 
-                Paragraph("Data do Processamento<br/><b>11/09/2026</b>", style_lbl), 
+                Paragraph(f"Data do Processamento<br/><b>{data_processamento_fmt}</b>", style_lbl), 
                 Paragraph(f"Nosso Número<br/><b>{bol_numero}</b>", style_lbl)
             ],
             [
@@ -267,7 +278,7 @@ def gerar_pdf_boleto(dados_pedido, pasta_destino, caminhos_config=None):
             [
                 Paragraph(
                     "Instruções (Texto de responsabilidade do beneficiário.)<br/>"
-                    "TESTE — APOS O VENC. COBRAR MULTA DE 2,00% | JUROS DE 0,17% DIA<br/>"
+                    "APOS O VENC. COBRAR MULTA DE 2,00% | JUROS DE 0,17% DIA<br/>"
                     f"Parcela {parcela} de 1 &nbsp;|&nbsp; Pix Copia e Cole: <font size=5>{pix}</font>",
                     style_lbl
                 ),
